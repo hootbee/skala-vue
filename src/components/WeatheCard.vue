@@ -1,0 +1,162 @@
+<script setup>
+defineProps({
+  weather: {
+    type: Object,
+    required: true,
+  },
+})
+
+const emit = defineEmits(['select-card', 'click-detail'])
+
+const weatherIcon = {
+  맑음: '☀️',
+  비: '🌧️',
+  구름: '☁️',
+}
+
+const selectCard = (weather) => {
+  emit('select-card', weather)
+}
+
+const showDetail = (weather) => {
+  emit('click-detail', weather)
+}
+</script>
+
+<template>
+  <article
+    class="weather-card"
+    tabindex="0"
+    @click="selectCard(weather)"
+    @keydown.enter="selectCard(weather)"
+  >
+    <div class="card-top">
+      <div>
+        <p class="city-name">{{ weather.name }}</p>
+        <p class="weather-status">{{ weather.status }}</p>
+      </div>
+      <span class="weather-icon" aria-hidden="true">
+        {{ weatherIcon[weather.status] }}
+      </span>
+    </div>
+
+    <p class="temperature">{{ weather.temp }}<span>°C</span></p>
+
+    <div class="card-bottom">
+      <span v-if="weather.temp >= 25" class="temperature-label hot">
+        🔥 더움 (25도 이상)
+      </span>
+      <span v-else class="temperature-label cool">
+        ❄️ 선선함 (25도 미만)
+      </span>
+      <button type="button" @click.stop="showDetail(weather)">상세보기</button>
+    </div>
+  </article>
+</template>
+
+<style scoped>
+.weather-card {
+  padding: 26px;
+  border: 1px solid rgba(195, 218, 234, 0.76);
+  border-radius: 24px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 16px 32px rgba(54, 97, 129, 0.09);
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.weather-card:hover,
+.weather-card:focus-visible {
+  border-color: #79b9e3;
+  transform: translateY(-5px);
+  box-shadow: 0 22px 38px rgba(45, 101, 142, 0.15);
+}
+
+.card-top,
+.card-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.city-name {
+  margin: 0 0 4px;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.weather-status {
+  margin: 0;
+  font-size: 0.86rem;
+  color: #7a8d9c;
+}
+
+.weather-icon {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  place-items: center;
+  font-size: 2rem;
+  background: #edf7ff;
+}
+
+.temperature {
+  margin: 26px 0 30px;
+  font-size: 3.5rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.06em;
+  color: #153e5f;
+}
+
+.temperature span {
+  margin-left: 3px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: #83a0b5;
+}
+
+.temperature-label {
+  padding: 7px 10px;
+  border-radius: 9px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.temperature-label.hot {
+  color: #cc5f31;
+  background: #fff0e8;
+}
+
+.temperature-label.cool {
+  color: #397eb1;
+  background: #eaf5ff;
+}
+
+.card-bottom button {
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  color: #fff;
+  background: #276fa3;
+  transition: background 150ms ease;
+}
+
+.card-bottom button:hover {
+  background: #185984;
+}
+
+@media (max-width: 560px) {
+  .card-bottom {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .card-bottom button {
+    width: 100%;
+  }
+}
+</style>
