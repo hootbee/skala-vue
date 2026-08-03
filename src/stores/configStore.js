@@ -2,17 +2,17 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 export const useConfigStore = defineStore('config', () => {
-  const temperatureUnit = ref('C')
-  const isCelsius = computed(() => temperatureUnit.value === 'C')
+  const unit = ref('celsius')
+  const isCelsius = computed(() => unit.value === 'celsius')
 
   const toggleTemperatureUnit = () => {
-    temperatureUnit.value = isCelsius.value ? 'F' : 'C'
+    unit.value = isCelsius.value ? 'fahrenheit' : 'celsius'
   }
 
   const formatTemperature = (celsius) => {
     const value = isCelsius.value ? celsius : (celsius * 9) / 5 + 32
-    return `${Math.round(value)}°${temperatureUnit.value}`
+    return `${Math.round(value)}°${isCelsius.value ? 'C' : 'F'}`
   }
 
-  return { temperatureUnit, isCelsius, toggleTemperatureUnit, formatTemperature }
+  return { unit, isCelsius, toggleTemperatureUnit, formatTemperature }
 })

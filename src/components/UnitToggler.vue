@@ -3,14 +3,14 @@ import { storeToRefs } from 'pinia'
 import { useConfigStore } from '../stores/configStore'
 
 const configStore = useConfigStore()
-const { temperatureUnit } = storeToRefs(configStore)
+const { unit } = storeToRefs(configStore)
 </script>
 
 <template>
-  <button class="unit-toggler" type="button" :aria-label="`${temperatureUnit === 'C' ? '화씨' : '섭씨'}로 변경`" @click="configStore.toggleTemperatureUnit">
-    <span :class="{ active: temperatureUnit === 'C' }">°C</span>
+  <button class="unit-toggler" type="button" :aria-label="`${unit === 'celsius' ? '화씨' : '섭씨'}로 변경`" @click="configStore.toggleTemperatureUnit">
+    <span :class="{ active: unit === 'celsius' }">°C</span>
     <span class="divider">/</span>
-    <span :class="{ active: temperatureUnit === 'F' }">°F</span>
+    <span :class="{ active: unit === 'fahrenheit' }">°F</span>
   </button>
 </template>
 

@@ -1,7 +1,8 @@
 <script setup>
+import { computed } from 'vue'
 import { useConfigStore } from '../../stores/configStore'
 
-defineProps({
+const props = defineProps({
   weather: {
     type: Object,
     required: true,
@@ -10,6 +11,7 @@ defineProps({
 
 const emit = defineEmits(['select-card', 'click-detail'])
 const configStore = useConfigStore()
+const displayTemp = computed(() => configStore.formatTemperature(props.weather.temp))
 
 const weatherIcon = {
   맑음: '☀️',
@@ -30,29 +32,29 @@ const showDetail = (weather) => {
   <article
     class="weather-card"
     tabindex="0"
-    @click="selectCard(weather)"
-    @keydown.enter="selectCard(weather)"
+    @click="selectCard(props.weather)"
+    @keydown.enter="selectCard(props.weather)"
   >
     <div class="card-top">
       <div>
-        <p class="city-name">{{ weather.name }}</p>
-        <p class="weather-status">{{ weather.status }}</p>
+        <p class="city-name">{{ props.weather.name }}</p>
+        <p class="weather-status">{{ props.weather.status }}</p>
       </div>
       <span class="weather-icon" aria-hidden="true">
-        {{ weatherIcon[weather.status] }}
+        {{ weatherIcon[props.weather.status] }}
       </span>
     </div>
 
-    <p class="temperature">{{ configStore.formatTemperature(weather.temp) }}</p>
+    <p class="temperature">{{ displayTemp }}</p>
 
     <div class="card-bottom">
-      <span v-if="weather.temp >= 25" class="temperature-label hot">
+      <span v-if="props.weather.temp >= 25" class="temperature-label hot">
         🔥 더움 (25도 이상)
       </span>
       <span v-else class="temperature-label cool">
         ❄️ 선선함 (25도 미만)
       </span>
-      <button type="button" @click.stop="showDetail(weather)">상세보기</button>
+      <button type="button" @click.stop="showDetail(props.weather)">상세보기</button>
     </div>
   </article>
 </template>
