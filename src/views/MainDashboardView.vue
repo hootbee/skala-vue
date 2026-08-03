@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { STOCK_MARKETS, fetchStockSeries } from '../services/stockApi'
+import { fetchTopHeadlines } from '../services/newsApi'
 import { useConfigStore } from '../stores/configStore'
 import {
   fetchCurrentWeather,
@@ -74,11 +75,28 @@ onMounted(async () => {
   }))
 })
 
-const news = [
-  { category: '날씨', title: '이번 주 맑고 더운 날씨 이어져…낮 최고 30도', summary: '큰 일교차에 유의하고 외출 시 자외선 차단제를 준비하세요.', time: '28분 전' },
-  { category: '경제', title: '국내 증시 강보합 출발, 반도체주 상승세', summary: '외국인 순매수에 힘입어 주요 지수가 소폭 상승하고 있습니다.', time: '1시간 전' },
-  { category: '생활', title: '여름철 전력 수요 증가, 생활 속 절전 방법은', summary: '실내 적정 온도 유지와 대기전력 차단으로 에너지를 아낄 수 있습니다.', time: '2시간 전' },
-]
+const news = ref([])
+const isNewsLoading = ref(true)
+const newsSource = ref('loading')
+
+const formatNewsTime = (publishedAt) => {
+  const publishedDate = new Date(publishedAt)
+  if (Number.isNaN(publishedDate.getTime())) return '시간 정보 없음'
+  const elapsedMinutes = Math.max(0, Math.floor((Date.now() - publishedDate.getTime()) / 60000))
+  if (elapsedMinutes < 60) return `${Math.max(1, elapsedMinutes)}분 전`
+  if (elapsedMinutes < 1440) return `${Math.floor(elapsedMinutes / 60)}시간 전`
+  return new Intl.DateTimeFormat('ko-KR', { month: 'short', day: 'numeric' }).format(publishedDate)
+}
+
+const loadNews = async () => {
+  isNewsLoading.value = true
+  const result = await fetchTopHeadlines()
+  news.value = result.articles.map((article) => ({ ...article, time: formatNewsTime(article.publishedAt) }))
+  newsSource.value = result.source
+  isNewsLoading.value = false
+}
+
+onMounted(loadNews)
 </script>
 
 <template>
@@ -109,18 +127,20 @@ const news = [
       <section class="panel news-panel" aria-labelledby="news-title">
         <div class="panel-heading">
           <div><p class="eyebrow">TODAY'S NEWS</p><h2 id="news-title">오늘의 주요 뉴스</h2></div>
-          <span class="demo-label">DEMO</span>
+          <span :class="['source-label', newsSource]">{{ newsSource === 'api' ? 'LIVE' : newsSource === 'demo' ? 'DEMO' : 'LOADING' }}</span>
         </div>
-        <div class="news-list">
+        <p v-if="isNewsLoading" class="news-state" role="status">오늘의 뉴스를 불러오는 중입니다…</p>
+        <div v-else class="news-list">
           <article v-for="(item, index) in news" :key="item.title" class="news-item">
             <span class="news-number">0{{ index + 1 }}</span>
             <div class="news-content">
-              <div class="news-meta"><span>{{ item.category }}</span><time>{{ item.time }}</time></div>
-              <h3>{{ item.title }}</h3>
-              <p>{{ item.summary }}</p>
+              <div class="news-meta"><span>{{ item.source }}</span><time :datetime="item.publishedAt">{{ item.time }}</time></div>
+              <h3><a v-if="item.url" :href="item.url" target="_blank" rel="noopener noreferrer">{{ item.title }}</a><span v-else>{{ item.title }}</span></h3>
+              <p>{{ item.description }}</p>
             </div>
           </article>
         </div>
+        <p v-if="newsSource === 'demo' && !isNewsLoading" class="news-notice">GNews API 키가 없거나 연결할 수 없어 참고용 뉴스를 표시합니다.</p>
       </section>
 
       <div class="side-stack">
@@ -198,14 +218,20 @@ const news = [
 .panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 16px; }
 .eyebrow { margin: 0 0 6px; color: var(--blue-500); font-size: .68rem; font-weight: 800; letter-spacing: .16em; }
 .panel-heading h2 { margin: 0; color: #203e54; font-size: 1.35rem; letter-spacing: -.035em; }
-.demo-label { padding: 5px 8px; border-radius: 99px; color: #527f9e; background: var(--blue-100); font-size: .62rem; font-weight: 800; }
+.source-label { padding: 5px 8px; border-radius: 99px; color: #527f9e; background: var(--blue-100); font-size: .62rem; font-weight: 800; }
+.source-label.api { color: #167454; background: #e5f7ef; }
+.source-label.loading { color: #7e8f9a; background: #edf2f5; }
+.news-state { display: grid; min-height: 300px; margin: 0; place-items: center; color: #7890a1; font-size: .78rem; }
 .news-list { display: grid; }
 .news-item { display: grid; grid-template-columns: 38px 1fr; gap: 14px; padding: 22px 0; border-top: 1px solid #e5edf2; }
 .news-number { padding-top: 4px; color: #9ab0be; font-size: .76rem; font-weight: 800; }
 .news-meta { display: flex; gap: 8px; margin-bottom: 6px; color: #8ca0ae; font-size: .7rem; }
 .news-meta span { color: var(--blue-700); font-weight: 800; }
 .news-content h3 { margin: 0 0 7px; color: #28465b; font-size: 1rem; line-height: 1.45; }
+.news-content h3 a { color: inherit; text-decoration: none; }
+.news-content h3 a:hover { color: var(--blue-700); text-decoration: underline; text-underline-offset: 3px; }
 .news-content p { margin: 0; color: #728796; font-size: .78rem; line-height: 1.65; }
+.news-notice { margin: 12px 0 0; color: #8a9ca7; font-size: .65rem; }
 .side-stack { display: grid; gap: 20px; }
 .weather-panel, .stock-panel { padding: 24px; }
 .compact-heading { align-items: center; }
