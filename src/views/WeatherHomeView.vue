@@ -1,8 +1,11 @@
 <script setup>
 import { computed, ref, watch, watchEffect } from 'vue'
-import BaseDashboardCard from './BaseDashboardCard.vue'
-import SearchBar from './SearchBar.vue'
-import WeatheCard from './WeatheCard.vue'
+import { useRouter } from 'vue-router'
+import BaseDashboardCard from '../components/exercise/BaseDashboardCard.vue'
+import SearchBar from '../components/exercise/SearchBar.vue'
+import WeatherCard from '../components/exercise/WeatherCard.vue'
+
+const router = useRouter()
 
 const weatherList = ref([
   { id: 'city_01', name: '서울', temp: 28, status: '맑음' },
@@ -48,7 +51,7 @@ const selectCity = (city) => {
 }
 
 const showDetail = (city) => {
-  window.alert(`${city.name}의 현재 날씨는 [${city.status}] 상태입니다.`)
+  router.push(`/weather/${city.id}`)
 }
 </script>
 
@@ -78,7 +81,7 @@ const showDetail = (city) => {
         </div>
 
         <div v-if="filteredWeatherList.length" class="weather-grid">
-          <WeatheCard
+          <WeatherCard
             v-for="weather in filteredWeatherList"
             :key="weather.id"
             :weather="weather"
