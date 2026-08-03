@@ -6,7 +6,14 @@ import UnitToggler from './components/UnitToggler.vue'
   <div class="app-shell">
     <nav class="app-nav" aria-label="주요 메뉴">
       <RouterLink class="brand" to="/">SKALA WEATHER</RouterLink>
-      <div class="nav-actions"><div class="nav-links"><RouterLink to="/">날씨 홈</RouterLink><RouterLink to="/about">서비스 소개</RouterLink></div><UnitToggler /></div>
+      <div class="nav-actions">
+        <div class="nav-links">
+          <RouterLink to="/">날씨 홈</RouterLink>
+          <RouterLink to="/about">서비스 소개</RouterLink>
+          <RouterLink to="/stocks">주식 시세</RouterLink>
+        </div>
+        <UnitToggler />
+      </div>
     </nav>
     <RouterView />
   </div>
@@ -14,11 +21,12 @@ import UnitToggler from './components/UnitToggler.vue'
 
 <style scoped>
 .app-shell { min-height: 100vh; }
-.app-nav { display: flex; align-items: center; justify-content: space-between; width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 22px 0 0; }
-.brand { font-weight: 900; letter-spacing: .08em; color: #17649a; text-decoration: none; }
+.app-nav { display: flex; align-items: center; justify-content: space-between; width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 20px 0; border-bottom: 1px solid var(--line); }
+.brand { font-weight: 900; letter-spacing: .08em; color: var(--blue-700); text-decoration: none; }
 .nav-links { display: flex; gap: 8px; }
 .nav-actions { display: flex; align-items: center; gap: 12px; }
-.nav-links a { padding: 9px 13px; border-radius: 10px; color: #5d7485; text-decoration: none; font-size: .9rem; }
-.nav-links a.router-link-active { color: #17649a; background: #e6f4ff; font-weight: 700; }
-@media (max-width: 560px) { .app-nav { align-items: flex-start; flex-direction: column; gap: 12px; } .nav-actions { flex-wrap: wrap; } }
+.nav-links a { padding: 8px 10px; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: .9rem; }
+.nav-links a:hover { color: var(--blue-700); background: var(--blue-100); }
+.nav-links a.router-link-active { color: var(--blue-700); background: var(--blue-100); font-weight: 700; }
+@media (max-width: 560px) { .app-nav { align-items: flex-start; flex-direction: column; gap: 12px; } .nav-actions { width: 100%; justify-content: space-between; flex-wrap: wrap; } }
 </style>

@@ -15,6 +15,7 @@ const weatherList = ref([
 
 const searchQuery = ref('')
 const selectedCityInfo = ref(null)
+document.title = '지역별 날씨 현황 | SKALA Weather'
 
 const filteredWeatherList = computed(() => {
   const query = searchQuery.value.trim()
@@ -85,6 +86,7 @@ const showDetail = (city) => {
             v-for="weather in filteredWeatherList"
             :key="weather.id"
             :weather="weather"
+            :selected="selectedCityInfo?.id === weather.id"
             @select-card="selectCity"
             @click-detail="showDetail"
           />
@@ -106,20 +108,20 @@ const showDetail = (city) => {
 .weather-page {
   width: min(1120px, calc(100% - 40px));
   margin: 0 auto;
-  padding: 56px 0 48px;
+  padding: 40px 0 56px;
 }
 
 .hero {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 220px;
-  padding: 38px 46px;
-  overflow: hidden;
-  border-radius: 32px;
+  min-height: 190px;
+  padding: 34px 38px;
+  border: 1px solid #c8e0ef;
+  border-radius: 18px;
   color: #fff;
-  background: linear-gradient(112deg, rgba(14, 99, 190, 0.96), rgba(63, 164, 230, 0.82)), #1676c7;
-  box-shadow: 0 24px 50px rgba(34, 105, 161, 0.2);
+  background: #17649a;
+  box-shadow: 0 14px 30px rgba(34, 105, 161, 0.14);
 }
 
 .eyebrow {
@@ -138,7 +140,7 @@ p {
 
 h1 {
   margin-bottom: 12px;
-  font-size: clamp(2.1rem, 6vw, 3.7rem);
+  font-size: clamp(2rem, 5vw, 3.25rem);
   line-height: 1.12;
   letter-spacing: -0.055em;
 }
@@ -151,13 +153,13 @@ h1 {
 
 .hero-symbol {
   display: grid;
-  width: 150px;
-  height: 150px;
+  width: 108px;
+  height: 108px;
   flex: 0 0 auto;
   border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 50%;
+  border-radius: 18px;
   place-items: center;
-  font-size: 5rem;
+  font-size: 3.8rem;
   background: rgba(255, 255, 255, 0.12);
   box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.12);
 }
@@ -190,7 +192,7 @@ h1 {
 
 .weather-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 18px;
 }
 
@@ -227,7 +229,7 @@ h1 {
 
 @media (max-width: 820px) {
   .weather-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .hero-symbol {
@@ -240,13 +242,13 @@ h1 {
 @media (max-width: 560px) {
   .weather-page {
     width: min(100% - 24px, 1120px);
-    padding-top: 18px;
+    padding-top: 24px;
   }
 
   .hero {
     min-height: 0;
-    padding: 30px 24px;
-    border-radius: 24px;
+    padding: 28px 22px;
+    border-radius: 16px;
   }
 
   .hero-symbol {
@@ -256,5 +258,8 @@ h1 {
   .hero-description {
     font-size: 0.9rem;
   }
+
+  .weather-grid { grid-template-columns: 1fr; }
+  .section-heading { align-items: flex-start; flex-direction: column; gap: 12px; }
 }
 </style>

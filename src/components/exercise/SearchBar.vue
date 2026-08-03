@@ -46,10 +46,10 @@ const updateQuery = (event) => {
   align-items: center;
   gap: 12px;
   padding: 0 18px;
-  border: 1px solid #d5e6f3;
+  border: 1px solid var(--line);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 10px 28px rgba(49, 101, 140, 0.08);
+  box-shadow: var(--shadow);
 }
 
 .search-box span {
@@ -63,7 +63,7 @@ const updateQuery = (event) => {
   padding: 17px 0;
   border: 0;
   outline: 0;
-  color: #18324a;
+  color: var(--ink);
   background: transparent;
 }
 

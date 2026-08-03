@@ -3,7 +3,15 @@
 :root {
   font-family: 'Noto Sans KR', system-ui, sans-serif;
   color: #18324a;
-  background: #eef7ff;
+  background: #f4f8fb;
+  --ink: #18324a;
+  --muted: #60788b;
+  --blue-700: #17649a;
+  --blue-500: #318bd0;
+  --blue-100: #e8f4fc;
+  --line: #d8e5ed;
+  --surface: #fff;
+  --shadow: 0 10px 28px rgba(35, 81, 112, 0.08);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -16,9 +24,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
-  background:
-    radial-gradient(circle at 12% 8%, rgba(255, 255, 255, 0.95), transparent 28%),
-    linear-gradient(145deg, #e9f6ff 0%, #f7fbff 55%, #e3f2ff 100%);
+  background: #f4f8fb;
 }
 
 button,
@@ -28,4 +34,20 @@ input {
 
 button {
   cursor: pointer;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid rgba(49, 139, 208, 0.45);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

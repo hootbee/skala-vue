@@ -7,10 +7,15 @@
   </main>
 </template>
 
+<script setup>
+document.title = '서비스 소개 | SKALA Weather'
+</script>
+
 <style scoped>
-.simple-view { width: min(820px, calc(100% - 40px)); margin: 0 auto; padding: 100px 0; color: #23445d; }
-.eyebrow { color: #318bd0; font-size: .75rem; font-weight: 800; letter-spacing: .16em; }
+.simple-view { width: min(820px, calc(100% - 40px)); margin: 0 auto; padding: 72px 0; color: var(--ink); }
+.eyebrow { color: var(--blue-500); font-size: .75rem; font-weight: 800; letter-spacing: .16em; }
 h1 { max-width: 620px; font-size: clamp(2rem, 5vw, 3.5rem); letter-spacing: -.05em; }
-.simple-view p:not(.eyebrow) { max-width: 600px; line-height: 1.8; color: #668095; }
-.back-link { display: inline-block; margin-top: 28px; padding: 12px 16px; border-radius: 10px; color: #fff; background: #276fa3; text-decoration: none; }
+.simple-view p:not(.eyebrow) { max-width: 600px; line-height: 1.8; color: var(--muted); }
+.back-link { display: inline-block; margin-top: 28px; padding: 12px 16px; border-radius: 9px; color: #fff; background: var(--blue-700); text-decoration: none; }
+.back-link:hover { background: #12527e; }
 </style>

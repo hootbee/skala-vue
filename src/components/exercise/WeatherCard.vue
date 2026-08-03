@@ -7,6 +7,10 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  selected: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const emit = defineEmits(['select-card', 'click-detail'])
@@ -31,9 +35,14 @@ const showDetail = (weather) => {
 <template>
   <article
     class="weather-card"
+    :class="{ selected }"
+    role="button"
+    :aria-pressed="selected"
+    :aria-label="`${props.weather.name} ${props.weather.status}, ${displayTemp}. 선택하려면 Enter를 누르세요.`"
     tabindex="0"
     @click="selectCard(props.weather)"
     @keydown.enter="selectCard(props.weather)"
+    @keydown.space.prevent="selectCard(props.weather)"
   >
     <div class="card-top">
       <div>
@@ -62,19 +71,19 @@ const showDetail = (weather) => {
 <style scoped>
 .weather-card {
   padding: 26px;
-  border: 1px solid rgba(195, 218, 234, 0.76);
-  border-radius: 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
   outline: none;
   background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 16px 32px rgba(54, 97, 129, 0.09);
-  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  box-shadow: var(--shadow);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
 .weather-card:hover,
-.weather-card:focus-visible {
+.weather-card:focus-visible,
+.weather-card.selected {
   border-color: #79b9e3;
-  transform: translateY(-5px);
-  box-shadow: 0 22px 38px rgba(45, 101, 142, 0.15);
+  box-shadow: 0 14px 28px rgba(45, 101, 142, 0.14);
 }
 
 .card-top,
