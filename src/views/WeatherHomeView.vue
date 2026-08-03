@@ -1,17 +1,17 @@
 <script setup>
-import { computed, ref, watch, watchEffect } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import BaseDashboardCard from '../components/exercise/BaseDashboardCard.vue'
 import SearchBar from '../components/exercise/SearchBar.vue'
 import WeatherCard from '../components/exercise/WeatherCard.vue'
+import KoreaWeatherMap from '../components/KoreaWeatherMap.vue'
+import { fetchCurrentWeather, getWeatherErrorMessage, WEATHER_CITIES } from '../services/weatherApi'
 
 const router = useRouter()
 
-const weatherList = ref([
-  { id: 'city_01', name: '서울', temp: 28, status: '맑음' },
-  { id: 'city_02', name: '판교', temp: 24, status: '비' },
-  { id: 'city_03', name: '전주', temp: 26, status: '구름' },
-])
+const weatherList = ref([])
+const isLoading = ref(true)
+const loadError = ref('')
 
 const searchQuery = ref('')
 const selectedCityInfo = ref(null)
@@ -39,10 +39,6 @@ watch(selectedCityInfo, (cityInfo) => {
   }
 })
 
-watchEffect(() => {
-  console.log('도시 검색어:', searchQuery.value)
-})
-
 const updateSearchQuery = (query) => {
   searchQuery.value = query
 }
@@ -54,6 +50,18 @@ const selectCity = (city) => {
 const showDetail = (city) => {
   router.push(`/weather/${city.id}`)
 }
+
+const loadWeather = async () => {
+  isLoading.value = true
+  loadError.value = ''
+  const results = await Promise.allSettled(WEATHER_CITIES.map(fetchCurrentWeather))
+  weatherList.value = results.filter(({ status }) => status === 'fulfilled').map(({ value }) => value)
+  const failed = results.find(({ status }) => status === 'rejected')
+  if (failed) loadError.value = getWeatherErrorMessage(failed.reason)
+  isLoading.value = false
+}
+
+onMounted(loadWeather)
 </script>
 
 <template>
@@ -68,10 +76,6 @@ const showDetail = (city) => {
     </header>
 
     <BaseDashboardCard>
-      <SearchBar :search-query="searchQuery" @update-query="updateSearchQuery" />
-    </BaseDashboardCard>
-
-    <BaseDashboardCard>
       <section class="weather-section" aria-labelledby="weather-title">
         <div class="section-heading">
           <div>
@@ -81,7 +85,12 @@ const showDetail = (city) => {
           <span class="city-count">총 {{ filteredWeatherList.length }}개 도시</span>
         </div>
 
-        <div v-if="filteredWeatherList.length" class="weather-grid">
+        <div class="weather-search">
+          <SearchBar :search-query="searchQuery" @update-query="updateSearchQuery" />
+        </div>
+
+        <p v-if="isLoading" class="state-message" role="status">실시간 날씨를 불러오는 중입니다…</p>
+        <div v-else-if="filteredWeatherList.length" class="weather-grid">
           <WeatherCard
             v-for="weather in filteredWeatherList"
             :key="weather.id"
@@ -91,11 +100,18 @@ const showDetail = (city) => {
             @click-detail="showDetail"
           />
         </div>
+        <div v-else-if="loadError" class="error-result" role="alert">
+          <p>{{ loadError }}</p>
+          <button type="button" @click="loadWeather">다시 시도</button>
+        </div>
         <p v-else class="empty-result" role="status">
           검색 결과와 일치하는 도시가 없습니다.
         </p>
+        <p v-if="loadError && weatherList.length" class="partial-error" role="status">일부 도시 정보를 불러오지 못했습니다.</p>
       </section>
     </BaseDashboardCard>
+
+    <KoreaWeatherMap />
 
     <aside class="status-bar" aria-live="polite">
       <span class="status-dot" aria-hidden="true"></span>
@@ -168,6 +184,12 @@ h1 {
   width: 100%;
 }
 
+.weather-search {
+  margin-bottom: 22px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e4edf2;
+}
+
 .section-heading {
   display: flex;
   align-items: end;
@@ -205,6 +227,22 @@ h1 {
   color: #66859b;
   background: rgba(255, 255, 255, 0.62);
 }
+
+.state-message,
+.error-result {
+  margin: 0;
+  padding: 42px 24px;
+  border: 1px dashed #b6d4e8;
+  border-radius: 20px;
+  text-align: center;
+  color: #66859b;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.error-result { border-color: #e5bebe; color: #9f4747; background: #fff8f8; }
+.error-result p { margin-bottom: 14px; }
+.error-result button { padding: 9px 14px; border: 0; border-radius: 9px; color: #fff; background: var(--blue-700); }
+.partial-error { margin: 14px 0 0; color: #9f5a47; font-size: .8rem; }
 
 .status-bar {
   display: flex;

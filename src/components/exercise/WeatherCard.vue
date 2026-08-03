@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useConfigStore } from '../../stores/configStore'
+import { getUvLevel } from '../../services/weatherApi'
 
 const props = defineProps({
   weather: {
@@ -21,6 +22,8 @@ const weatherIcon = {
   맑음: '☀️',
   비: '🌧️',
   구름: '☁️',
+  눈: '🌨️',
+  안개: '🌫️',
 }
 
 const selectCard = (weather) => {
@@ -50,11 +53,30 @@ const showDetail = (weather) => {
         <p class="weather-status">{{ props.weather.status }}</p>
       </div>
       <span class="weather-icon" aria-hidden="true">
-        {{ weatherIcon[props.weather.status] }}
+        {{ weatherIcon[props.weather.status] ?? '🌤️' }}
       </span>
     </div>
 
     <p class="temperature">{{ displayTemp }}</p>
+
+    <dl class="weather-metrics">
+      <div>
+        <dt>체감온도</dt>
+        <dd>{{ configStore.formatTemperature(props.weather.feelsLike) }}</dd>
+      </div>
+      <div>
+        <dt>습도</dt>
+        <dd>{{ props.weather.humidity }}%</dd>
+      </div>
+      <div>
+        <dt>최근 1시간 강수</dt>
+        <dd>{{ props.weather.precipitation.toFixed(1) }} mm</dd>
+      </div>
+      <div>
+        <dt>자외선</dt>
+        <dd>{{ props.weather.uvIndex ?? '—' }} <small>{{ getUvLevel(props.weather.uvIndex) }}</small></dd>
+      </div>
+    </dl>
 
     <div class="card-bottom">
       <span v-if="props.weather.temp >= 25" class="temperature-label hot">
@@ -131,6 +153,39 @@ const showDetail = (weather) => {
   font-weight: 600;
   letter-spacing: 0;
   color: #83a0b5;
+}
+
+.weather-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin: -10px 0 24px;
+}
+
+.weather-metrics div {
+  padding: 10px;
+  border-radius: 10px;
+  background: #f2f8fc;
+}
+
+.weather-metrics dt {
+  margin-bottom: 3px;
+  color: #7b91a1;
+  font-size: .65rem;
+}
+
+.weather-metrics dd {
+  margin: 0;
+  color: #34566e;
+  font-size: .8rem;
+  font-weight: 800;
+}
+
+.weather-metrics small {
+  margin-left: 2px;
+  color: #71899a;
+  font-size: .62rem;
+  font-weight: 600;
 }
 
 .temperature-label {

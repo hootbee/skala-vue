@@ -6,19 +6,29 @@ const stockApi = axios.create({
 })
 
 export const STOCK_MARKETS = [
-  { id: 'kospi', name: '코스피', symbol: '^KS11', currency: '포인트' },
-  { id: 'nasdaq', name: '나스닥', symbol: '^IXIC', currency: '포인트' },
-  { id: 'sp500', name: 'S&P 500', symbol: '^GSPC', currency: '포인트' },
-  { id: 'samsung', name: '삼성전자', symbol: '005930.KS', currency: '원' },
-  { id: 'sk-hynix', name: 'SK하이닉스', symbol: '000660.KS', currency: '원' },
+  { id: 'nvidia', rank: 1, name: '엔비디아', symbol: 'NVDA', currency: 'USD' },
+  { id: 'alphabet', rank: 2, name: '알파벳', symbol: 'GOOGL', currency: 'USD' },
+  { id: 'apple', rank: 3, name: '애플', symbol: 'AAPL', currency: 'USD' },
+  { id: 'microsoft', rank: 4, name: '마이크로소프트', symbol: 'MSFT', currency: 'USD' },
+  { id: 'amazon', rank: 5, name: '아마존', symbol: 'AMZN', currency: 'USD' },
+  { id: 'broadcom', rank: 6, name: '브로드컴', symbol: 'AVGO', currency: 'USD' },
+  { id: 'meta', rank: 7, name: '메타', symbol: 'META', currency: 'USD' },
+  { id: 'tesla', rank: 8, name: '테슬라', symbol: 'TSLA', currency: 'USD' },
+  { id: 'walmart', rank: 9, name: '월마트', symbol: 'WMT', currency: 'USD' },
+  { id: 'berkshire', rank: 10, name: '버크셔 해서웨이', symbol: 'BRK.B', currency: 'USD' },
 ]
 
 const demoPrices = [
-  [2650, 2678, 2664, 2691, 2710, 2698, 2732, 2750, 2741, 2768, 2784, 2772],
-  [16840, 16920, 16810, 17030, 17120, 17070, 17240, 17310, 17260, 17420, 17510, 17620],
-  [5480, 5510, 5490, 5540, 5575, 5550, 5605, 5620, 5590, 5650, 5680, 5705],
-  [73500, 74200, 73800, 75100, 74600, 75800, 76500, 76100, 77400, 78200, 77800, 79100],
-  [182000, 185500, 183800, 188000, 191500, 189000, 194000, 198500, 196000, 201000, 205500, 209000],
+  [178, 181, 180, 184, 187, 185, 189, 191, 188, 192, 194, 193],
+  [315, 319, 318, 323, 327, 325, 330, 333, 331, 335, 337, 339],
+  [325, 329, 327, 332, 335, 334, 338, 340, 337, 341, 342, 343],
+  [420, 416, 412, 414, 409, 405, 407, 403, 401, 404, 400, 398],
+  [218, 221, 220, 224, 226, 225, 228, 230, 229, 232, 230, 231],
+  [350, 354, 352, 359, 363, 361, 368, 371, 369, 374, 376, 377],
+  [570, 575, 573, 580, 584, 581, 587, 590, 588, 592, 593, 594],
+  [320, 316, 313, 309, 312, 306, 304, 308, 305, 303, 301, 302],
+  [108, 109, 109, 110, 111, 110, 112, 113, 112, 114, 113, 114],
+  [495, 498, 497, 501, 503, 502, 506, 508, 507, 509, 510, 510],
 ]
 
 export const demoSeries = (index) => demoPrices[index].map((value, i) => ({
@@ -28,13 +38,19 @@ export const demoSeries = (index) => demoPrices[index].map((value, i) => ({
 
 export async function fetchStockSeries(market) {
   const token = import.meta.env.VITE_FINNHUB_API_KEY
-  if (!token) return { series: demoSeries(STOCK_MARKETS.findIndex(({ id }) => id === market.id)), source: 'demo' }
+  const fallback = () => ({ series: demoSeries(STOCK_MARKETS.findIndex(({ id }) => id === market.id)), source: 'demo' })
+  if (!token) return fallback()
 
-  const to = Math.floor(Date.now() / 1000)
-  const from = to - 60 * 60 * 24 * 30
-  const { data } = await stockApi.get('/stock/candle', {
-    params: { symbol: market.symbol, resolution: 'D', from, to, token },
-  })
-  if (data.s !== 'ok' || !data.c?.length) throw new Error(`${market.name} 데이터를 불러오지 못했습니다.`)
-  return { source: 'api', series: data.c.map((value, i) => ({ timestamp: data.t[i] * 1000, value })) }
+  try {
+    // Historical candles require Finnhub Premium. Quote is available on the
+    // free plan, so use it to refresh the latest point on the demo sparkline.
+    const { data } = await stockApi.get('/quote', { params: { symbol: market.symbol, token } })
+    if (!Number.isFinite(data.c) || data.c <= 0) return fallback()
+    const series = fallback().series
+    series[series.length - 1] = { timestamp: Date.now(), value: data.c }
+    return { source: 'api', series, change: data.d, percentChange: data.dp }
+  } catch {
+    // API 키, 플랜, CORS 또는 일시적인 네트워크 오류가 있어도 대시보드는 유지한다.
+    return fallback()
+  }
 }
