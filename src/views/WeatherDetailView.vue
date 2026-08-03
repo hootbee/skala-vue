@@ -1,8 +1,10 @@
 <script setup>
 import { computed } from 'vue'
+import { useConfigStore } from '../stores/configStore'
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
+const configStore = useConfigStore()
 const weatherList = [
   { id: 'city_01', name: '서울', temp: 28, status: '맑음', observation: '맑고 따뜻한 날씨입니다.' },
   { id: 'city_02', name: '판교', temp: 24, status: '비', observation: '우산을 준비해 주세요.' },
@@ -13,7 +15,7 @@ const city = computed(() => weatherList.find((item) => item.id === route.params.
 
 <template>
   <main class="detail-view">
-    <template v-if="city"><p class="eyebrow">CITY DETAIL</p><h1>{{ city.name }} 날씨 상세</h1><div class="detail-card"><span class="detail-icon">{{ city.status === '맑음' ? '☀️' : city.status === '비' ? '🌧️' : '☁️' }}</span><p class="temperature">{{ city.temp }}<small>°C</small></p><p class="status">현재 상태: <strong>{{ city.status }}</strong></p><p>{{ city.observation }}</p></div></template>
+    <template v-if="city"><p class="eyebrow">CITY DETAIL</p><h1>{{ city.name }} 날씨 상세</h1><div class="detail-card"><span class="detail-icon">{{ city.status === '맑음' ? '☀️' : city.status === '비' ? '🌧️' : '☁️' }}</span><p class="temperature">{{ configStore.formatTemperature(city.temp) }}</p><p class="status">현재 상태: <strong>{{ city.status }}</strong></p><p>{{ city.observation }}</p></div></template>
     <template v-else><h1>도시 정보를 찾을 수 없습니다.</h1><p>요청한 도시 코드가 Mock 데이터에 없습니다.</p></template>
     <RouterLink class="back-link" to="/">날씨 홈으로 돌아가기</RouterLink>
   </main>

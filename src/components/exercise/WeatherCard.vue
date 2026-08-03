@@ -1,4 +1,6 @@
 <script setup>
+import { useConfigStore } from '../../stores/configStore'
+
 defineProps({
   weather: {
     type: Object,
@@ -7,6 +9,7 @@ defineProps({
 })
 
 const emit = defineEmits(['select-card', 'click-detail'])
+const configStore = useConfigStore()
 
 const weatherIcon = {
   맑음: '☀️',
@@ -40,7 +43,7 @@ const showDetail = (weather) => {
       </span>
     </div>
 
-    <p class="temperature">{{ weather.temp }}<span>°C</span></p>
+    <p class="temperature">{{ configStore.formatTemperature(weather.temp) }}</p>
 
     <div class="card-bottom">
       <span v-if="weather.temp >= 25" class="temperature-label hot">
