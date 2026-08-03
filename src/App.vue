@@ -1,5 +1,6 @@
 <script setup>
 import UnitToggler from './components/UnitToggler.vue'
+import WeatherChatbot from './components/WeatherChatbot.vue'
 </script>
 
 <template>
@@ -8,14 +9,17 @@ import UnitToggler from './components/UnitToggler.vue'
       <RouterLink class="brand" to="/">SKALA WEATHER</RouterLink>
       <div class="nav-actions">
         <div class="nav-links">
-          <RouterLink to="/">날씨 홈</RouterLink>
+          <RouterLink to="/">통합 홈</RouterLink>
+          <RouterLink to="/weather">날씨</RouterLink>
           <RouterLink to="/about">서비스 소개</RouterLink>
           <RouterLink to="/stocks">주식 시세</RouterLink>
+          <RouterLink class="subscribe-link" to="/subscribe">구독하기</RouterLink>
         </div>
         <UnitToggler />
       </div>
     </nav>
     <RouterView />
+    <WeatherChatbot />
   </div>
 </template>
 
@@ -28,5 +32,8 @@ import UnitToggler from './components/UnitToggler.vue'
 .nav-links a { padding: 8px 10px; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: .9rem; }
 .nav-links a:hover { color: var(--blue-700); background: var(--blue-100); }
 .nav-links a.router-link-active { color: var(--blue-700); background: var(--blue-100); font-weight: 700; }
-@media (max-width: 560px) { .app-nav { align-items: flex-start; flex-direction: column; gap: 12px; } .nav-actions { width: 100%; justify-content: space-between; flex-wrap: wrap; } }
+.nav-links .subscribe-link { color: #fff; background: var(--blue-700); font-weight: 700; }
+.nav-links .subscribe-link:hover,
+.nav-links .subscribe-link.router-link-active { color: #fff; background: #12527e; }
+@media (max-width: 720px) { .app-nav { align-items: flex-start; flex-direction: column; gap: 12px; } .nav-actions { width: 100%; justify-content: space-between; flex-wrap: wrap; } .nav-links { flex-wrap: wrap; } }
 </style>
