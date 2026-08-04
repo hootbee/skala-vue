@@ -27,7 +27,7 @@ const formatDateTime = (value) => value
 
     <div v-else-if="error" class="analysis-state error" role="alert">
       <strong>AI 분석을 완료하지 못했습니다.</strong><p>{{ error }}</p>
-      <button type="button" @click="emit('analyze')">다시 시도</button>
+      <button type="button" @click="emit('analyze', true)">다시 시도</button>
     </div>
 
     <div v-else-if="!result" class="analysis-empty">
@@ -57,7 +57,7 @@ const formatDateTime = (value) => value
       </div>
 
       <section class="risk-box" aria-labelledby="risk-title"><h4 id="risk-title">핵심 위험요인</h4><ul><li v-for="risk in result.keyRisks" :key="risk">{{ risk }}</li></ul></section>
-      <footer class="analysis-footer"><div><strong>{{ result.model }}</strong><time :datetime="result.analyzedAt">{{ formatDateTime(result.analyzedAt) }} 분석</time></div><button type="button" @click="emit('analyze')">다시 분석</button></footer>
+      <footer class="analysis-footer"><div><strong>{{ result.model }}</strong><time :datetime="result.analyzedAt">{{ formatDateTime(result.analyzedAt) }} 분석 · 6시간 저장</time></div><button type="button" @click="emit('analyze', true)">다시 분석</button></footer>
       <p class="disclaimer">{{ result.disclaimer }} 투자 판단과 손실의 책임은 사용자에게 있으며, 중요한 결정 전 공식 공시와 전문가 의견을 함께 확인하세요.</p>
     </template>
   </section>

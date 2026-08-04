@@ -38,6 +38,14 @@ const strategySchema = {
 const finiteOrNull = (value) => Number.isFinite(value) ? value : null
 const round = (value, digits = 2) => Number.isFinite(value) ? Number(value.toFixed(digits)) : null
 
+const parseStructuredResponse = (text) => {
+  const trimmed = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+  const start = trimmed.indexOf('{')
+  const end = trimmed.lastIndexOf('}')
+  if (start === -1 || end <= start) throw new SyntaxError('JSON object not found')
+  return JSON.parse(trimmed.slice(start, end + 1))
+}
+
 const summarizePriceSeries = (chart) => {
   const values = chart?.values ?? []
   if (values.length < 2) return null
@@ -118,6 +126,7 @@ export async function analyzeStockStrategy(input) {
     'Do not invent facts after generatedAt, industry averages, analyst consensus, or future financial performance.',
     'Prioritize price momentum and volatility for the short term, quarterly growth for the medium term, and annual growth plus valuation for the long term.',
     'All narrative fields, strategy explanations, risks, checkpoints, and the disclaimer must be written in Korean.',
+    'Keep the summary to two sentences. Keep each thesis, entryPlan, and riskManagement field to no more than two concise sentences. Keep every checkpoint and risk to one concise sentence.',
     `DATA=${JSON.stringify(dataset)}`,
   ].join('\n')
 
@@ -129,7 +138,7 @@ export async function analyzeStockStrategy(input) {
     generationConfig: {
       responseMimeType: 'application/json',
       responseSchema: strategySchema,
-      maxOutputTokens: 4096,
+      maxOutputTokens: 8192,
     },
   }
 
@@ -149,7 +158,7 @@ export async function analyzeStockStrategy(input) {
 
     const text = data.candidates?.[0]?.content?.parts?.map(({ text: part }) => part ?? '').join('')
     if (!text) throw new Error('Gemini가 분석 결과를 반환하지 않았습니다.')
-    return { ...JSON.parse(text), model: 'Gemini 2.5 Flash', analyzedAt: new Date().toISOString() }
+    return { ...parseStructuredResponse(text), model: 'Gemini 2.5 Flash', analyzedAt: new Date().toISOString() }
   } catch (error) {
     if (error.response?.status === 400) throw new Error('Gemini 요청 형식을 처리하지 못했습니다.')
     if (error.response?.status === 403) throw new Error('Gemini API 키 또는 허용된 웹사이트 설정을 확인해 주세요.')

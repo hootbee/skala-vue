@@ -79,7 +79,9 @@ const rangePosition = computed(() => {
   return Math.min(100, Math.max(0, ((currentPrice - week52Low) / (week52High - week52Low)) * 100))
 })
 const chartSeries = computed(() => chartData.value?.values ?? [])
-const analysisResult = computed(() => analysisResults.value[selectedMarket.value.symbol] ?? null)
+const analysisResult = computed(() => analysisResults.value[selectedMarket.value.symbol]
+  ?? stockStore.getCachedAnalysis(selectedMarket.value.symbol)
+  ?? null)
 const isCandlePeriod = computed(() => Boolean(candlePeriodLabels[selectedPeriod.value]))
 const chartTypeLabel = computed(() => candlePeriodLabels[selectedPeriod.value] ?? '종가 라인')
 const chartPlotSeries = computed(() => {
@@ -243,10 +245,16 @@ const loadDetail = async (market, force = false) => {
   }
 }
 
-async function runAiAnalysis() {
+async function runAiAnalysis(force = false) {
   const market = selectedMarket.value
   const currentDetail = detail.value
   if (!currentDetail) return
+
+  const cached = force ? null : stockStore.getCachedAnalysis(market.symbol)
+  if (cached) {
+    analysisResults.value = { ...analysisResults.value, [market.symbol]: cached }
+    return
+  }
 
   const requestId = ++analysisRequestId
   isAnalysisLoading.value = true
@@ -259,6 +267,7 @@ async function runAiAnalysis() {
     const result = await analyzeStockStrategy({ detail: currentDetail, financials, chart })
     if (requestId === analysisRequestId) {
       analysisResults.value = { ...analysisResults.value, [market.symbol]: result }
+      stockStore.cacheAnalysis(market.symbol, result)
     }
   } catch (error) {
     if (requestId === analysisRequestId) analysisError.value = error.message || 'AI 분석을 완료하지 못했습니다.'

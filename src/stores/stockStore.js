@@ -30,6 +30,7 @@ export const STOCK_CACHE_TTL = Object.freeze({
   metrics: 30 * 60_000,
   news: 15 * 60_000,
   financials: 24 * 60 * 60_000,
+  analysis: 6 * 60 * 60_000,
   chart: {
     '1D': 2 * 60_000,
     '1W': 5 * 60_000,
@@ -107,6 +108,7 @@ export const useStockStore = defineStore('stock', () => {
   const newsEntries = ref(savedApiCache.newsEntries ?? {})
   const chartEntries = ref(savedApiCache.chartEntries ?? {})
   const financialEntries = ref(savedApiCache.financialEntries ?? {})
+  const analysisEntries = ref(savedApiCache.analysisEntries ?? {})
   const marketStatusEntry = ref(savedApiCache.marketStatusEntry ?? null)
 
   const quoteCache = computed(() => rawCache(quoteEntries.value))
@@ -139,6 +141,7 @@ export const useStockStore = defineStore('stock', () => {
         newsEntries: newestEntries(newsEntries.value, 10),
         chartEntries: newestEntries(chartEntries.value, 12),
         financialEntries: newestEntries(financialEntries.value, 8),
+        analysisEntries: newestEntries(analysisEntries.value, 10),
         marketStatusEntry: marketStatusEntry.value,
       }))
     } catch {
@@ -307,6 +310,17 @@ export const useStockStore = defineStore('stock', () => {
     force,
   })
 
+  const getCachedAnalysis = (symbol) => {
+    const entry = analysisEntries.value[symbol]
+    if (!entry?.data || Date.now() - entry.cachedAt >= STOCK_CACHE_TTL.analysis) return null
+    return entry.data
+  }
+
+  const cacheAnalysis = (symbol, analysis) => {
+    if (!validSymbols.has(symbol) || !analysis) return null
+    return setEntry(analysisEntries, symbol, analysis)
+  }
+
   return {
     favoriteSymbols,
     recentSymbols,
@@ -328,5 +342,7 @@ export const useStockStore = defineStore('stock', () => {
     getDetail,
     getChart,
     getFinancials,
+    getCachedAnalysis,
+    cacheAnalysis,
   }
 })
