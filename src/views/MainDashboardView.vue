@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { STOCK_MARKETS, fetchStockSeries } from '../services/stockApi'
+import { STOCK_MARKETS, fetchStockQuote } from '../services/stockApi'
 import { fetchTopHeadlines } from '../services/newsApi'
 import { useConfigStore } from '../stores/configStore'
 import {
@@ -56,22 +56,22 @@ const stocks = ref(STOCK_MARKETS.slice(0, 3).map((market) => ({
   source: 'loading',
 })))
 const marketNotice = computed(() =>
-  stocks.value.some(({ source }) => source === 'demo')
-    ? 'API 연결 실패로 참고용 시세를 표시하고 있습니다.'
+  stocks.value.some(({ source }) => source === 'error')
+    ? '일부 종목 시세를 불러오지 못했습니다.'
     : 'Finnhub 미국 주식 현재가이며 투자 참고용입니다.',
 )
 
 onMounted(async () => {
   await Promise.all(stocks.value.map(async (stock) => {
-    const result = await fetchStockSeries(stock)
-    const latest = result.series.at(-1)?.value
-    const previous = result.series.at(-2)?.value
-    const percentChange = result.percentChange ?? ((latest - previous) / previous) * 100
-
-    stock.value = currencyFormatter.format(latest)
-    stock.change = `${percentChange >= 0 ? '+' : ''}${percentChange.toFixed(2)}%`
-    stock.up = percentChange >= 0
-    stock.source = result.source
+    try {
+      const result = await fetchStockQuote(stock)
+      stock.value = currencyFormatter.format(result.currentPrice)
+      stock.change = `${result.changePercent >= 0 ? '+' : ''}${result.changePercent.toFixed(2)}%`
+      stock.up = result.changePercent >= 0
+      stock.source = 'api'
+    } catch {
+      stock.source = 'error'
+    }
   }))
 })
 

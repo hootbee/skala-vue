@@ -5,52 +5,224 @@ const stockApi = axios.create({
   timeout: 10000,
 })
 
+const chartApi = axios.create({
+  baseURL: 'https://api.twelvedata.com',
+  timeout: 15000,
+})
+
 export const STOCK_MARKETS = [
-  { id: 'nvidia', rank: 1, name: '엔비디아', symbol: 'NVDA', currency: 'USD' },
-  { id: 'alphabet', rank: 2, name: '알파벳', symbol: 'GOOGL', currency: 'USD' },
-  { id: 'apple', rank: 3, name: '애플', symbol: 'AAPL', currency: 'USD' },
-  { id: 'microsoft', rank: 4, name: '마이크로소프트', symbol: 'MSFT', currency: 'USD' },
-  { id: 'amazon', rank: 5, name: '아마존', symbol: 'AMZN', currency: 'USD' },
-  { id: 'broadcom', rank: 6, name: '브로드컴', symbol: 'AVGO', currency: 'USD' },
-  { id: 'meta', rank: 7, name: '메타', symbol: 'META', currency: 'USD' },
-  { id: 'tesla', rank: 8, name: '테슬라', symbol: 'TSLA', currency: 'USD' },
-  { id: 'walmart', rank: 9, name: '월마트', symbol: 'WMT', currency: 'USD' },
-  { id: 'berkshire', rank: 10, name: '버크셔 해서웨이', symbol: 'BRK.B', currency: 'USD' },
+  { id: 'nvidia', rank: 1, name: '엔비디아', symbol: 'NVDA' },
+  { id: 'apple', rank: 2, name: '애플', symbol: 'AAPL' },
+  { id: 'alphabet', rank: 3, name: '알파벳', symbol: 'GOOG' },
+  { id: 'microsoft', rank: 4, name: '마이크로소프트', symbol: 'MSFT' },
+  { id: 'amazon', rank: 5, name: '아마존', symbol: 'AMZN' },
+  { id: 'broadcom', rank: 6, name: '브로드컴', symbol: 'AVGO' },
+  { id: 'spacex', rank: 7, name: '스페이스X', symbol: 'SPCX' },
+  { id: 'meta', rank: 8, name: '메타', symbol: 'META' },
+  { id: 'tesla', rank: 9, name: '테슬라', symbol: 'TSLA' },
+  { id: 'berkshire', rank: 10, name: '버크셔 해서웨이', symbol: 'BRK.B' },
+  { id: 'eli-lilly', rank: 11, name: '일라이 릴리', symbol: 'LLY' },
+  { id: 'jpmorgan', rank: 12, name: 'JP모건 체이스', symbol: 'JPM' },
+  { id: 'micron', rank: 13, name: '마이크론', symbol: 'MU' },
+  { id: 'walmart', rank: 14, name: '월마트', symbol: 'WMT' },
+  { id: 'amd', rank: 15, name: 'AMD', symbol: 'AMD' },
+  { id: 'visa', rank: 16, name: '비자', symbol: 'V' },
+  { id: 'exxon-mobil', rank: 17, name: '엑슨모빌', symbol: 'XOM' },
+  { id: 'johnson-johnson', rank: 18, name: '존슨앤드존슨', symbol: 'JNJ' },
+  { id: 'mastercard', rank: 19, name: '마스터카드', symbol: 'MA' },
+  { id: 'cisco', rank: 20, name: '시스코', symbol: 'CSCO' },
+  { id: 'intel', rank: 21, name: '인텔', symbol: 'INTC' },
+  { id: 'abbvie', rank: 22, name: '애브비', symbol: 'ABBV' },
+  { id: 'bank-of-america', rank: 23, name: '뱅크 오브 아메리카', symbol: 'BAC' },
+  { id: 'costco', rank: 24, name: '코스트코', symbol: 'COST' },
+  { id: 'applied-materials', rank: 25, name: '어플라이드 머티어리얼즈', symbol: 'AMAT' },
+  { id: 'chevron', rank: 26, name: '셰브론', symbol: 'CVX' },
+  { id: 'coca-cola', rank: 27, name: '코카콜라', symbol: 'KO' },
+  { id: 'unitedhealth', rank: 28, name: '유나이티드헬스', symbol: 'UNH' },
+  { id: 'caterpillar', rank: 29, name: '캐터필러', symbol: 'CAT' },
+  { id: 'oracle', rank: 30, name: '오라클', symbol: 'ORCL' },
 ]
 
-const demoPrices = [
-  [178, 181, 180, 184, 187, 185, 189, 191, 188, 192, 194, 193],
-  [315, 319, 318, 323, 327, 325, 330, 333, 331, 335, 337, 339],
-  [325, 329, 327, 332, 335, 334, 338, 340, 337, 341, 342, 343],
-  [420, 416, 412, 414, 409, 405, 407, 403, 401, 404, 400, 398],
-  [218, 221, 220, 224, 226, 225, 228, 230, 229, 232, 230, 231],
-  [350, 354, 352, 359, 363, 361, 368, 371, 369, 374, 376, 377],
-  [570, 575, 573, 580, 584, 581, 587, 590, 588, 592, 593, 594],
-  [320, 316, 313, 309, 312, 306, 304, 308, 305, 303, 301, 302],
-  [108, 109, 109, 110, 111, 110, 112, 113, 112, 114, 113, 114],
-  [495, 498, 497, 501, 503, 502, 506, 508, 507, 509, 510, 510],
+export const STOCK_RANKING_UPDATED_AT = '2026-08-04'
+
+export const STOCK_CHART_PERIODS = [
+  { id: '1D', label: '1일', interval: '5min', outputsize: 78 },
+  { id: '1W', label: '1주', interval: '1h', outputsize: 40 },
+  { id: '1M', label: '1개월', interval: '1day', outputsize: 23 },
+  { id: '3M', label: '3개월', interval: '1day', outputsize: 66 },
+  { id: '6M', label: '6개월', interval: '1day', outputsize: 132 },
+  { id: '1Y', label: '1년', interval: '1day', outputsize: 260 },
+  { id: '5Y', label: '5년', interval: '1week', outputsize: 260 },
+  { id: 'ALL', label: '전체', interval: '1month', outputsize: 5000 },
 ]
 
-export const demoSeries = (index) => demoPrices[index].map((value, i) => ({
-  timestamp: Date.now() - (demoPrices[index].length - i) * 86400000,
-  value,
-}))
+const getToken = () => import.meta.env.VITE_FINNHUB_API_KEY
 
-export async function fetchStockSeries(market) {
-  const token = import.meta.env.VITE_FINNHUB_API_KEY
-  const fallback = () => ({ series: demoSeries(STOCK_MARKETS.findIndex(({ id }) => id === market.id)), source: 'demo' })
-  if (!token) return fallback()
+const get = async (path, params = {}) => {
+  const token = getToken()
+  if (!token) throw new Error('Finnhub API 키가 설정되지 않았습니다.')
+  const { data } = await stockApi.get(path, { params: { ...params, token } })
+  return data
+}
 
-  try {
-    // Historical candles require Finnhub Premium. Quote is available on the
-    // free plan, so use it to refresh the latest point on the demo sparkline.
-    const { data } = await stockApi.get('/quote', { params: { symbol: market.symbol, token } })
-    if (!Number.isFinite(data.c) || data.c <= 0) return fallback()
-    const series = fallback().series
-    series[series.length - 1] = { timestamp: Date.now(), value: data.c }
-    return { source: 'api', series, change: data.d, percentChange: data.dp }
-  } catch {
-    // API 키, 플랜, CORS 또는 일시적인 네트워크 오류가 있어도 대시보드는 유지한다.
-    return fallback()
+const finiteOrNull = (value) => Number.isFinite(value) ? value : null
+
+const normalizeQuote = (data) => ({
+  currentPrice: finiteOrNull(data.c),
+  change: finiteOrNull(data.d),
+  changePercent: finiteOrNull(data.dp),
+  open: finiteOrNull(data.o),
+  high: finiteOrNull(data.h),
+  low: finiteOrNull(data.l),
+  previousClose: finiteOrNull(data.pc),
+  updatedAt: data.t ? new Date(data.t * 1000).toISOString() : null,
+})
+
+export async function fetchStockQuote(market) {
+  const data = await get('/quote', { symbol: market.symbol })
+  if (!Number.isFinite(data.c) || data.c <= 0) throw new Error(`${market.name} 시세를 확인할 수 없습니다.`)
+  return { ...market, ...normalizeQuote(data) }
+}
+
+export async function fetchStockProfile(market) {
+  const data = await get('/stock/profile2', { symbol: market.symbol })
+  return {
+    ...market,
+    name: data.name || market.name,
+    logo: data.logo || '',
   }
+}
+
+export async function fetchMarketStatus() {
+  const data = await get('/stock/market-status', { exchange: 'US' })
+  let label = '장 마감'
+  if (data.session === 'pre-market') label = '프리마켓'
+  else if (data.session === 'post-market') label = '시간외 거래'
+  else if (data.isOpen) label = '정규장 거래 중'
+
+  return {
+    isOpen: Boolean(data.isOpen),
+    session: data.session,
+    label,
+    holiday: data.holiday,
+    timezone: data.timezone,
+    updatedAt: data.t ? new Date(data.t * 1000).toISOString() : null,
+  }
+}
+
+const getDateString = (date) => date.toISOString().slice(0, 10)
+
+export async function fetchStockDetail(market) {
+  const today = new Date()
+  const monthAgo = new Date(today)
+  monthAgo.setDate(monthAgo.getDate() - 30)
+
+  const [quote, profile, financials, news] = await Promise.all([
+    get('/quote', { symbol: market.symbol }),
+    get('/stock/profile2', { symbol: market.symbol }),
+    get('/stock/metric', { symbol: market.symbol, metric: 'all' }),
+    get('/company-news', {
+      symbol: market.symbol,
+      from: getDateString(monthAgo),
+      to: getDateString(today),
+    }),
+  ])
+
+  const metric = financials.metric ?? {}
+  const marketCapInMillions = finiteOrNull(profile.marketCapitalization ?? metric.marketCapitalization)
+
+  return {
+    ...market,
+    ...normalizeQuote(quote),
+    name: profile.name || market.name,
+    symbol: profile.ticker || market.symbol,
+    exchange: profile.exchange || '미국 증권시장',
+    industry: profile.finnhubIndustry || '정보 없음',
+    country: profile.country || 'US',
+    currency: profile.currency || 'USD',
+    logo: profile.logo || '',
+    website: profile.weburl || '',
+    marketCap: marketCapInMillions === null ? null : marketCapInMillions * 1_000_000,
+    per: finiteOrNull(metric.peBasicExclExtraTTM ?? metric.peTTM),
+    pbr: finiteOrNull(metric.pbQuarterly ?? metric.pb),
+    eps: finiteOrNull(metric.epsBasicExclExtraItemsTTM ?? metric.epsTTM),
+    bps: finiteOrNull(metric.bookValuePerShareQuarterly ?? metric.bookValuePerShareAnnual),
+    dividendYield: finiteOrNull(metric.currentDividendYieldTTM ?? metric.dividendYieldIndicatedAnnual),
+    week52High: finiteOrNull(metric['52WeekHigh']),
+    week52Low: finiteOrNull(metric['52WeekLow']),
+    averageVolume: Number.isFinite(metric['3MonthAverageTradingVolume'])
+      ? metric['3MonthAverageTradingVolume'] * 1_000_000
+      : null,
+    sharesOutstanding: Number.isFinite(profile.shareOutstanding)
+      ? profile.shareOutstanding * 1_000_000
+      : null,
+    news: Array.isArray(news)
+      ? news.slice(0, 8).map((item) => ({
+          id: item.id,
+          headline: item.headline,
+          summary: item.summary,
+          source: item.source,
+          url: item.url,
+          image: item.image,
+          publishedAt: item.datetime ? new Date(item.datetime * 1000).toISOString() : null,
+        }))
+      : [],
+  }
+}
+
+export async function fetchStockChart(market, periodId) {
+  const token = import.meta.env.VITE_TWELVE_DATA_API_KEY
+  if (!token) throw new Error('Twelve Data API 키가 설정되지 않았습니다.')
+
+  const period = STOCK_CHART_PERIODS.find(({ id }) => id === periodId)
+  if (!period) throw new Error('지원하지 않는 차트 기간입니다.')
+
+  const { data } = await chartApi.get('/time_series', {
+    params: {
+      symbol: market.symbol,
+      interval: period.interval,
+      outputsize: period.outputsize,
+      apikey: token,
+    },
+  })
+
+  if (data.status === 'error' || !Array.isArray(data.values)) {
+    const error = new Error(data.message || '차트 데이터를 불러오지 못했습니다.')
+    error.apiCode = data.code
+    throw error
+  }
+
+  const values = data.values.map((item) => ({
+    datetime: item.datetime,
+    timestamp: new Date(item.datetime.replace(' ', 'T')).getTime(),
+    open: Number(item.open),
+    high: Number(item.high),
+    low: Number(item.low),
+    close: Number(item.close),
+    volume: Number(item.volume),
+  })).filter((item) => Number.isFinite(item.timestamp) && Number.isFinite(item.close))
+    .sort((a, b) => a.timestamp - b.timestamp)
+
+  if (!values.length) throw new Error('선택한 기간의 차트 데이터가 없습니다.')
+
+  return {
+    period,
+    currency: data.meta?.currency || 'USD',
+    exchange: data.meta?.exchange || '',
+    values,
+  }
+}
+
+export function getStockErrorMessage(error) {
+  if (error.response?.status === 403) return '현재 Finnhub 플랜에서 이 정보를 사용할 수 없습니다.'
+  if (error.response?.status === 429) return 'API 호출 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.'
+  if (error.code === 'ECONNABORTED') return '시세 서버 응답이 지연되고 있습니다. 다시 시도해 주세요.'
+  return error.message || '주식 정보를 불러오지 못했습니다.'
+}
+
+export function getChartErrorMessage(error) {
+  if (error.apiCode === 429) return 'Twelve Data 호출 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.'
+  if (error.apiCode === 401) return 'Twelve Data API 키를 확인해 주세요.'
+  if (error.code === 'ECONNABORTED') return '차트 서버 응답이 지연되고 있습니다. 다시 시도해 주세요.'
+  return error.message || '차트 데이터를 불러오지 못했습니다.'
 }
