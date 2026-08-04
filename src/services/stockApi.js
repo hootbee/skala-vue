@@ -160,6 +160,143 @@ export async function fetchStockNews(market) {
     : []
 }
 
+const financialConcepts = {
+  revenue: [
+    'us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax',
+    'us-gaap_Revenues',
+    'us-gaap_SalesRevenueNet',
+    'us-gaap_SalesRevenueGoodsNet',
+  ],
+  operatingIncome: ['us-gaap_OperatingIncomeLoss'],
+  netIncome: ['us-gaap_NetIncomeLoss', 'us-gaap_ProfitLoss'],
+  eps: ['us-gaap_EarningsPerShareDiluted', 'us-gaap_EarningsPerShareBasic'],
+  assets: ['us-gaap_Assets'],
+  liabilities: ['us-gaap_Liabilities'],
+  equity: [
+    'us-gaap_StockholdersEquity',
+    'us-gaap_StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest',
+  ],
+}
+
+const financialLabelPatterns = {
+  revenue: /^(net sales|revenue|revenues|total revenues)$/i,
+  operatingIncome: /^operating income/i,
+  netIncome: /^net income/i,
+  eps: /^diluted.*per share|diluted earnings per share/i,
+  assets: /^total assets$/i,
+  liabilities: /^total liabilities$/i,
+  equity: /^(total )?(shareholders|stockholders).+equity$/i,
+}
+
+const findReportedValue = (sections, metric) => {
+  const entries = sections.flatMap((section) => Array.isArray(section) ? section : [])
+  const byConcept = financialConcepts[metric]
+    .map((concept) => entries.find((entry) => entry.concept === concept))
+    .find(Boolean)
+  const entry = byConcept ?? entries.find(({ label = '' }) => financialLabelPatterns[metric].test(label))
+  return Number.isFinite(entry?.value) ? entry.value : null
+}
+
+const normalizeFiling = (filing) => ({
+  year: Number(filing.year),
+  quarter: Number(filing.quarter),
+  period: filing.endDate?.slice(0, 10) ?? '',
+  revenue: findReportedValue([filing.report?.ic], 'revenue'),
+  operatingIncome: findReportedValue([filing.report?.ic], 'operatingIncome'),
+  netIncome: findReportedValue([filing.report?.ic], 'netIncome'),
+  eps: findReportedValue([filing.report?.ic], 'eps'),
+  assets: findReportedValue([filing.report?.bs], 'assets'),
+  liabilities: findReportedValue([filing.report?.bs], 'liabilities'),
+  equity: findReportedValue([filing.report?.bs], 'equity'),
+})
+
+const flowMetrics = ['revenue', 'operatingIncome', 'netIncome', 'eps']
+
+const subtractPeriods = (current, previous) => Object.fromEntries(flowMetrics.map((metric) => [
+  metric,
+  Number.isFinite(current?.[metric]) && Number.isFinite(previous?.[metric])
+    ? current[metric] - previous[metric]
+    : current?.[metric] ?? null,
+]))
+
+const calculateGrowth = (current, previous) => {
+  if (!Number.isFinite(current) || !Number.isFinite(previous) || previous === 0) return null
+  return ((current - previous) / Math.abs(previous)) * 100
+}
+
+const addGrowthRates = (rows, quarterly = false) => rows.map((row, index) => {
+  const previous = rows[index - 1]
+  const yearAgo = quarterly
+    ? rows.find((candidate) => candidate.year === row.year - 1 && candidate.quarter === row.quarter)
+    : previous
+  return {
+    ...row,
+    revenueChange: calculateGrowth(row.revenue, previous?.revenue),
+    revenueYoY: calculateGrowth(row.revenue, yearAgo?.revenue),
+    netIncomeChange: calculateGrowth(row.netIncome, previous?.netIncome),
+    netIncomeYoY: calculateGrowth(row.netIncome, yearAgo?.netIncome),
+  }
+})
+
+const buildQuarterlyFinancials = (quarterlyFilings, annualFilings) => {
+  const quarters = quarterlyFilings.map(normalizeFiling)
+  const annualByYear = new Map(annualFilings.map((filing) => {
+    const normalized = normalizeFiling(filing)
+    return [normalized.year, normalized]
+  }))
+  const rows = []
+
+  for (const year of [...new Set(quarters.map(({ year }) => year))]) {
+    const yearQuarters = quarters.filter((row) => row.year === year)
+    let previousCumulative = null
+    for (const quarter of [1, 2, 3]) {
+      const cumulative = yearQuarters.find((row) => row.quarter === quarter)
+      if (!cumulative) continue
+      rows.push({
+        ...cumulative,
+        ...subtractPeriods(cumulative, previousCumulative),
+        quarter,
+      })
+      previousCumulative = cumulative
+    }
+
+    const annual = annualByYear.get(year)
+    if (annual && previousCumulative?.quarter === 3) {
+      rows.push({
+        ...annual,
+        ...subtractPeriods(annual, previousCumulative),
+        quarter: 4,
+      })
+    }
+  }
+
+  const sorted = rows
+    .filter((row) => Number.isFinite(row.revenue) || Number.isFinite(row.netIncome))
+    .sort((a, b) => a.year - b.year || a.quarter - b.quarter)
+  return addGrowthRates(sorted, true).slice(-8)
+}
+
+const buildAnnualFinancials = (filings) => {
+  const rows = filings.map(normalizeFiling)
+    .filter((row) => Number.isFinite(row.revenue) || Number.isFinite(row.netIncome))
+    .sort((a, b) => a.year - b.year)
+  return addGrowthRates(rows).slice(-6)
+}
+
+export async function fetchStockFinancials(market) {
+  const [quarterlyResponse, annualResponse] = await Promise.all([
+    get('/stock/financials-reported', { symbol: market.symbol, freq: 'quarterly' }),
+    get('/stock/financials-reported', { symbol: market.symbol, freq: 'annual' }),
+  ])
+  const quarterlyFilings = Array.isArray(quarterlyResponse.data) ? quarterlyResponse.data : []
+  const annualFilings = Array.isArray(annualResponse.data) ? annualResponse.data : []
+  const quarterly = buildQuarterlyFinancials(quarterlyFilings, annualFilings)
+  const annual = buildAnnualFinancials(annualFilings)
+
+  if (!quarterly.length && !annual.length) throw new Error(`${market.name}의 재무제표를 확인할 수 없습니다.`)
+  return { symbol: market.symbol, quarterly, annual, source: 'Finnhub · SEC 원문 공시' }
+}
+
 export function composeStockDetail(market, quote, profile, metrics, news) {
   return {
     ...market,

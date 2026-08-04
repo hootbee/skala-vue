@@ -6,6 +6,7 @@ import {
   composeStockDetail,
   fetchMarketStatus,
   fetchStockChart,
+  fetchStockFinancials,
   fetchStockMetrics,
   fetchStockNews,
   fetchStockProfile,
@@ -28,6 +29,7 @@ export const STOCK_CACHE_TTL = Object.freeze({
   profile: 24 * 60 * 60_000,
   metrics: 30 * 60_000,
   news: 15 * 60_000,
+  financials: 24 * 60 * 60_000,
   chart: {
     '1D': 2 * 60_000,
     '1W': 5 * 60_000,
@@ -104,6 +106,7 @@ export const useStockStore = defineStore('stock', () => {
   const metricEntries = ref(savedApiCache.metricEntries ?? {})
   const newsEntries = ref(savedApiCache.newsEntries ?? {})
   const chartEntries = ref(savedApiCache.chartEntries ?? {})
+  const financialEntries = ref(savedApiCache.financialEntries ?? {})
   const marketStatusEntry = ref(savedApiCache.marketStatusEntry ?? null)
 
   const quoteCache = computed(() => rawCache(quoteEntries.value))
@@ -135,6 +138,7 @@ export const useStockStore = defineStore('stock', () => {
         metricEntries: newestEntries(metricEntries.value, 12),
         newsEntries: newestEntries(newsEntries.value, 10),
         chartEntries: newestEntries(chartEntries.value, 12),
+        financialEntries: newestEntries(financialEntries.value, 8),
         marketStatusEntry: marketStatusEntry.value,
       }))
     } catch {
@@ -294,6 +298,15 @@ export const useStockStore = defineStore('stock', () => {
     })
   }
 
+  const getFinancials = (market, force = false) => resolveCached({
+    entries: financialEntries,
+    key: market.symbol,
+    requestKey: `financials:${market.symbol}`,
+    ttl: STOCK_CACHE_TTL.financials,
+    loader: () => fetchStockFinancials(market),
+    force,
+  })
+
   return {
     favoriteSymbols,
     recentSymbols,
@@ -314,5 +327,6 @@ export const useStockStore = defineStore('stock', () => {
     getMarketStatus,
     getDetail,
     getChart,
+    getFinancials,
   }
 })

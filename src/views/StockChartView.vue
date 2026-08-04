@@ -2,6 +2,9 @@
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import StockWatchlist from '../components/StockWatchlist.vue'
+import StockFinancials from '../components/StockFinancials.vue'
+import StockAiAnalysis from '../components/StockAiAnalysis.vue'
+import { analyzeStockStrategy } from '../services/geminiApi'
 import {
   STOCK_CHART_PERIODS,
   STOCK_MARKETS,
@@ -29,7 +32,17 @@ const detailError = ref('')
 const chartData = ref(null)
 const isChartLoading = ref(true)
 const chartError = ref('')
+const activeDetailTab = ref('quote')
+const financialData = ref(null)
+const financialSymbol = ref('')
+const isFinancialLoading = ref(false)
+const financialError = ref('')
+const analysisResults = ref({})
+const isAnalysisLoading = ref(false)
+const analysisError = ref('')
 let chartRequestId = 0
+let financialRequestId = 0
+let analysisRequestId = 0
 const initialQuoteCount = 10
 const candlePeriodLabels = {
   '1D': '5분봉 캔들',
@@ -66,6 +79,7 @@ const rangePosition = computed(() => {
   return Math.min(100, Math.max(0, ((currentPrice - week52Low) / (week52High - week52Low)) * 100))
 })
 const chartSeries = computed(() => chartData.value?.values ?? [])
+const analysisResult = computed(() => analysisResults.value[selectedMarket.value.symbol] ?? null)
 const isCandlePeriod = computed(() => Boolean(candlePeriodLabels[selectedPeriod.value]))
 const chartTypeLabel = computed(() => candlePeriodLabels[selectedPeriod.value] ?? '종가 라인')
 const chartPlotSeries = computed(() => {
@@ -206,7 +220,16 @@ const loadFavoriteProfiles = async () => {
 const loadDetail = async (market, force = false) => {
   stockStore.selectStock(market.symbol)
   detailError.value = ''
-  loadChart(market, selectedPeriod.value, force)
+  analysisRequestId += 1
+  isAnalysisLoading.value = false
+  analysisError.value = ''
+  if (activeDetailTab.value === 'quote') loadChart(market, selectedPeriod.value, force)
+  else {
+    chartData.value = null
+    chartError.value = ''
+    isChartLoading.value = false
+  }
+  if (activeDetailTab.value === 'financials') loadFinancials(market, force)
 
   detail.value = null
   isDetailLoading.value = true
@@ -217,6 +240,58 @@ const loadDetail = async (market, force = false) => {
     detailError.value = getStockErrorMessage(error)
   } finally {
     isDetailLoading.value = false
+  }
+}
+
+async function runAiAnalysis() {
+  const market = selectedMarket.value
+  const currentDetail = detail.value
+  if (!currentDetail) return
+
+  const requestId = ++analysisRequestId
+  isAnalysisLoading.value = true
+  analysisError.value = ''
+  try {
+    const [financials, chart] = await Promise.all([
+      stockStore.getFinancials(market),
+      stockStore.getChart(market, '6M'),
+    ])
+    const result = await analyzeStockStrategy({ detail: currentDetail, financials, chart })
+    if (requestId === analysisRequestId) {
+      analysisResults.value = { ...analysisResults.value, [market.symbol]: result }
+    }
+  } catch (error) {
+    if (requestId === analysisRequestId) analysisError.value = error.message || 'AI 분석을 완료하지 못했습니다.'
+  } finally {
+    if (requestId === analysisRequestId) isAnalysisLoading.value = false
+  }
+}
+
+async function loadFinancials(market, force = false) {
+  const requestId = ++financialRequestId
+  financialError.value = ''
+  if (financialSymbol.value !== market.symbol) financialData.value = null
+  isFinancialLoading.value = true
+  try {
+    const result = await stockStore.getFinancials(market, force)
+    if (requestId === financialRequestId) {
+      financialData.value = result
+      financialSymbol.value = market.symbol
+    }
+  } catch (error) {
+    if (requestId === financialRequestId) financialError.value = getStockErrorMessage(error)
+  } finally {
+    if (requestId === financialRequestId) isFinancialLoading.value = false
+  }
+}
+
+function selectDetailTab(tab) {
+  activeDetailTab.value = tab
+  if (tab === 'financials' && financialSymbol.value !== selectedMarket.value.symbol) {
+    loadFinancials(selectedMarket.value)
+  }
+  if (tab === 'quote' && !chartData.value && !isChartLoading.value) {
+    loadChart(selectedMarket.value, selectedPeriod.value)
   }
 }
 
@@ -357,6 +432,14 @@ onMounted(async () => {
             </div>
           </header>
 
+          <nav class="detail-tabs" aria-label="종목 상세 정보">
+            <button type="button" :class="{ active: activeDetailTab === 'quote' }" :aria-pressed="activeDetailTab === 'quote'" @click="selectDetailTab('quote')">시세</button>
+            <button type="button" :class="{ active: activeDetailTab === 'financials' }" :aria-pressed="activeDetailTab === 'financials'" @click="selectDetailTab('financials')">재무 추이</button>
+            <button type="button" :class="{ active: activeDetailTab === 'analysis' }" :aria-pressed="activeDetailTab === 'analysis'" @click="selectDetailTab('analysis')">AI 전략</button>
+            <button type="button" :class="{ active: activeDetailTab === 'news' }" :aria-pressed="activeDetailTab === 'news'" @click="selectDetailTab('news')">뉴스</button>
+          </nav>
+
+          <template v-if="activeDetailTab === 'quote'">
           <section class="price-summary" aria-labelledby="current-price-title">
             <div>
               <p id="current-price-title">현재가</p>
@@ -487,8 +570,27 @@ onMounted(async () => {
               <div><dt>발행주식수</dt><dd>{{ formatVolume(detail.sharesOutstanding) }}</dd></div>
             </dl>
           </section>
+          </template>
 
-          <section class="news-section" aria-labelledby="news-title">
+          <StockFinancials
+            v-else-if="activeDetailTab === 'financials'"
+            :data="financialData"
+            :company-name="detail.name"
+            :is-loading="isFinancialLoading"
+            :error="financialError"
+            @retry="loadFinancials(selectedMarket, true)"
+          />
+
+          <StockAiAnalysis
+            v-else-if="activeDetailTab === 'analysis'"
+            :result="analysisResult"
+            :company-name="detail.name"
+            :is-loading="isAnalysisLoading"
+            :error="analysisError"
+            @analyze="runAiAnalysis"
+          />
+
+          <section v-else class="news-section" aria-labelledby="news-title">
             <div class="section-heading">
               <div><p class="eyebrow">COMPANY NEWS</p><h3 id="news-title">최신 뉴스</h3></div>
               <span>{{ detail.news.length }}건</span>
@@ -507,7 +609,7 @@ onMounted(async () => {
     </section>
 
     <aside class="data-notice">
-      <div><strong>데이터 안내</strong><p>시가총액 순위는 {{ STOCK_RANKING_UPDATED_AT.replaceAll('-', '.') }} 기준 스냅샷입니다. 현재가·기업 정보·뉴스는 Finnhub, 기간별 차트는 Twelve Data에서 가져오며 순위와 가격은 변동될 수 있습니다.</p></div>
+      <div><strong>데이터 안내</strong><p>현재가·기업 정보·재무·뉴스는 Finnhub, 가격 차트는 Twelve Data에서 가져옵니다. AI 전략은 버튼을 누를 때만 숫자 데이터를 Gemini로 전송하며 투자자문이 아닌 참고용 분석입니다.</p></div>
       <button type="button" @click="retryAll">전체 새로고침</button>
     </aside>
   </main>
@@ -553,6 +655,9 @@ onMounted(async () => {
 .company-actions > a { color: var(--blue-700); font-size: .76rem; font-weight: 700; text-decoration: none; }
 .favorite-toggle { padding: 8px 10px; border: 1px solid #bdd2df; border-radius: 8px; color: var(--blue-700); background: #fff; font-size: .72rem; font-weight: 800; cursor: pointer; }
 .favorite-toggle:hover, .favorite-toggle.active { border-color: #e3b642; color: #7b5a00; background: #fff8dc; }
+.detail-tabs { display: flex; gap: 4px; padding: 5px; margin-top: 18px; border-radius: 11px; background: #e8f0f5; }
+.detail-tabs button { flex: 1; min-height: 40px; padding: 8px 12px; border: 0; border-radius: 8px; color: var(--muted); background: transparent; font: inherit; font-size: .76rem; font-weight: 800; }
+.detail-tabs button:hover { color: var(--blue-700); }.detail-tabs button.active { color: var(--blue-700); background: #fff; box-shadow: 0 2px 7px rgba(35,81,112,.1); }
 .price-summary { display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; padding: 27px 0; border-bottom: 1px solid var(--line); }
 .price-summary > div:first-child { display: grid; grid-template-columns: auto auto; align-items: baseline; column-gap: 12px; }.price-summary p { grid-column: 1 / -1; margin: 0 0 5px; color: var(--muted); font-size: .72rem; }.price-summary strong { font-size: clamp(2.1rem, 5vw, 3.1rem); letter-spacing: -.06em; }.price-summary span { color: #16815d; font-size: .82rem; font-weight: 800; }.price-summary span.down { color: #c05757; }
 .update-meta { display: grid; justify-items: end; gap: 4px; color: var(--muted); font-size: .67rem; }.update-meta .live-label { padding: 4px 7px; border-radius: 999px; color: #176c51; background: #e4f7ef; font-size: .62rem; }.update-meta small { max-width: 220px; text-align: right; }
