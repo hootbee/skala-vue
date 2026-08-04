@@ -43,6 +43,7 @@ jobs:
           VITE_FINNHUB_API_KEY: ${{ secrets.VITE_FINNHUB_API_KEY }}
           VITE_GNEWS_API_KEY: ${{ secrets.VITE_GNEWS_API_KEY }}
           VITE_TWELVE_DATA_API_KEY: ${{ secrets.VITE_TWELVE_DATA_API_KEY }}
+          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
 
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v6
