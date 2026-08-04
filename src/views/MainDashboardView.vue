@@ -1,8 +1,10 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { STOCK_MARKETS, fetchStockQuote } from '../services/stockApi'
+import { storeToRefs } from 'pinia'
+import { STOCK_MARKETS } from '../services/stockApi'
 import { fetchTopHeadlines } from '../services/newsApi'
 import { useConfigStore } from '../stores/configStore'
+import { useStockStore } from '../stores/stockStore'
 import {
   fetchCurrentWeather,
   getAirQualityLevel,
@@ -12,6 +14,8 @@ import {
 
 document.title = '오늘의 브리핑 | SKALA Weather'
 const configStore = useConfigStore()
+const stockStore = useStockStore()
+const { favoriteSymbols } = storeToRefs(stockStore)
 
 const today = new Intl.DateTimeFormat('ko-KR', {
   month: 'long',
@@ -48,13 +52,22 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
   currency: 'USD',
   maximumFractionDigits: 2,
 })
-const stocks = ref(STOCK_MARKETS.slice(0, 3).map((market) => ({
-  ...market,
-  value: '—',
-  change: '—',
-  up: null,
-  source: 'loading',
-})))
+const favoriteMarkets = favoriteSymbols.value
+  .map((symbol) => STOCK_MARKETS.find((market) => market.symbol === symbol))
+  .filter(Boolean)
+const dashboardMarkets = (favoriteMarkets.length ? favoriteMarkets : STOCK_MARKETS).slice(0, 3)
+const stocks = ref(dashboardMarkets.map((market) => {
+  const cached = stockStore.quoteCache[market.symbol]
+  return {
+    ...market,
+    value: Number.isFinite(cached?.currentPrice) ? currencyFormatter.format(cached.currentPrice) : '—',
+    change: Number.isFinite(cached?.changePercent)
+      ? `${cached.changePercent >= 0 ? '+' : ''}${cached.changePercent.toFixed(2)}%`
+      : '—',
+    up: Number.isFinite(cached?.changePercent) ? cached.changePercent >= 0 : null,
+    source: cached ? 'cache' : 'loading',
+  }
+}))
 const marketNotice = computed(() =>
   stocks.value.some(({ source }) => source === 'error')
     ? '일부 종목 시세를 불러오지 못했습니다.'
@@ -64,7 +77,7 @@ const marketNotice = computed(() =>
 onMounted(async () => {
   await Promise.all(stocks.value.map(async (stock) => {
     try {
-      const result = await fetchStockQuote(stock)
+      const result = await stockStore.getQuote(stock)
       stock.value = currencyFormatter.format(result.currentPrice)
       stock.change = `${result.changePercent >= 0 ? '+' : ''}${result.changePercent.toFixed(2)}%`
       stock.up = result.changePercent >= 0
@@ -166,7 +179,7 @@ onMounted(loadNews)
 
         <section class="panel stock-panel" aria-labelledby="stock-summary-title">
           <div class="panel-heading compact-heading">
-            <div><p class="eyebrow">U.S. MARKET</p><h2 id="stock-summary-title">미국 대형주</h2></div>
+            <div><p class="eyebrow">MY WATCHLIST</p><h2 id="stock-summary-title">관심 종목</h2></div>
             <RouterLink to="/stocks">전체 보기 <span aria-hidden="true">→</span></RouterLink>
           </div>
           <div class="stock-list">

@@ -1,37 +1,24 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import StockWatchlist from '../components/StockWatchlist.vue'
 import {
   STOCK_CHART_PERIODS,
   STOCK_MARKETS,
   STOCK_RANKING_UPDATED_AT,
-  fetchStockChart,
-  fetchMarketStatus,
-  fetchStockDetail,
-  fetchStockProfile,
-  fetchStockQuote,
   getChartErrorMessage,
   getStockErrorMessage,
 } from '../services/stockApi'
+import { useStockStore } from '../stores/stockStore'
 
 document.title = '미국 주식 시세 | SKALA Weather'
 
 const searchQuery = ref('')
-const selectedMarket = ref(STOCK_MARKETS.find(({ symbol }) => symbol === 'AAPL') ?? STOCK_MARKETS[0])
-const quotes = ref([])
-const favoriteStorageKey = 'skala-stock-favorites'
-const defaultFavoriteSymbols = ['NVDA', 'AAPL', 'MSFT']
-const getSavedFavorites = () => {
-  try {
-    const saved = JSON.parse(localStorage.getItem(favoriteStorageKey))
-    if (!Array.isArray(saved)) return defaultFavoriteSymbols
-    return saved.filter((symbol) => STOCK_MARKETS.some((market) => market.symbol === symbol)).slice(0, 6)
-  } catch {
-    return defaultFavoriteSymbols
-  }
-}
-const favoriteSymbols = ref(getSavedFavorites())
-const favoriteProfiles = ref({})
+const stockStore = useStockStore()
+const { favoriteSymbols, recentSymbols, selectedPeriod, selectedSymbol, quoteCache, profileCache } = storeToRefs(stockStore)
+const selectedMarket = computed(() =>
+  STOCK_MARKETS.find(({ symbol }) => symbol === selectedSymbol.value) ?? STOCK_MARKETS[0],
+)
 const favoriteMessage = ref('')
 const marketStatus = ref(null)
 const detail = ref(null)
@@ -39,12 +26,9 @@ const isListLoading = ref(true)
 const isDetailLoading = ref(true)
 const listError = ref('')
 const detailError = ref('')
-const detailCache = new Map()
-const selectedPeriod = ref('1M')
 const chartData = ref(null)
 const isChartLoading = ref(true)
 const chartError = ref('')
-const chartCache = new Map()
 let chartRequestId = 0
 const initialQuoteCount = 10
 const candlePeriodLabels = {
@@ -61,16 +45,20 @@ const filteredMarkets = computed(() => {
   )
 })
 
-const quoteBySymbol = computed(() => Object.fromEntries(quotes.value.map((quote) => [quote.symbol, quote])))
+const quoteBySymbol = computed(() => quoteCache.value)
 const favoriteMarkets = computed(() => favoriteSymbols.value
   .map((symbol) => STOCK_MARKETS.find((market) => market.symbol === symbol))
   .filter(Boolean)
   .map((market) => ({
     ...market,
-    ...favoriteProfiles.value[market.symbol],
+    ...profileCache.value[market.symbol],
     ...quoteBySymbol.value[market.symbol],
   })))
-const isSelectedFavorite = computed(() => favoriteSymbols.value.includes(selectedMarket.value.symbol))
+const recentMarkets = computed(() => recentSymbols.value
+  .map((symbol) => STOCK_MARKETS.find((market) => market.symbol === symbol))
+  .filter(Boolean)
+  .map((market) => ({ ...market, ...quoteBySymbol.value[market.symbol] })))
+const isSelectedFavorite = computed(() => stockStore.isFavorite(selectedMarket.value.symbol))
 const rangePosition = computed(() => {
   if (!detail.value) return 50
   const { currentPrice, week52High, week52Low } = detail.value
@@ -186,17 +174,18 @@ const formatChartDate = (value) => {
     .format(new Date(`${value.slice(0, 10)}T00:00:00`))
 }
 
-const loadMarket = async () => {
+const loadMarket = async (force = false) => {
   isListLoading.value = true
   listError.value = ''
   try {
     const [statusResult, quoteResults] = await Promise.all([
-      fetchMarketStatus(),
-      Promise.allSettled(STOCK_MARKETS.slice(0, initialQuoteCount).map(fetchStockQuote)),
+      stockStore.getMarketStatus(force),
+      Promise.allSettled(STOCK_MARKETS.slice(0, initialQuoteCount)
+        .map((market) => stockStore.getQuote(market, force))),
     ])
     marketStatus.value = statusResult
-    quotes.value = quoteResults.filter(({ status }) => status === 'fulfilled').map(({ value }) => value)
-    if (!quotes.value.length) throw new Error('종목 시세를 불러오지 못했습니다.')
+    const loadedQuotes = quoteResults.filter(({ status }) => status === 'fulfilled').map(({ value }) => value)
+    if (!loadedQuotes.length) throw new Error('종목 시세를 불러오지 못했습니다.')
   } catch (error) {
     listError.value = getStockErrorMessage(error)
   } finally {
@@ -208,38 +197,22 @@ const loadFavoriteProfiles = async () => {
   const markets = favoriteSymbols.value
     .map((symbol) => STOCK_MARKETS.find((market) => market.symbol === symbol))
     .filter(Boolean)
-  const results = await Promise.allSettled(markets.map(fetchStockProfile))
-  favoriteProfiles.value = Object.fromEntries(results
-    .filter(({ status }) => status === 'fulfilled')
-    .map(({ value }) => [value.symbol, value]))
-
-  const missingQuotes = markets.filter((market) => !quoteBySymbol.value[market.symbol])
-  if (!missingQuotes.length) return
-  const quoteResults = await Promise.allSettled(missingQuotes.map(fetchStockQuote))
-  quotes.value.push(...quoteResults
-    .filter(({ status }) => status === 'fulfilled')
-    .map(({ value }) => value))
+  await Promise.allSettled(markets.flatMap((market) => [
+    stockStore.getProfile(market),
+    stockStore.getQuote(market),
+  ]))
 }
 
 const loadDetail = async (market, force = false) => {
-  selectedMarket.value = market
+  stockStore.selectStock(market.symbol)
   detailError.value = ''
   loadChart(market, selectedPeriod.value, force)
-  if (!force && detailCache.has(market.symbol)) {
-    detail.value = detailCache.get(market.symbol)
-    return
-  }
 
   detail.value = null
   isDetailLoading.value = true
   try {
-    const result = await fetchStockDetail(market)
-    detailCache.set(market.symbol, result)
+    const result = await stockStore.getDetail(market, force)
     detail.value = result
-    const listQuote = { ...market, ...result }
-    const quoteIndex = quotes.value.findIndex(({ symbol }) => symbol === market.symbol)
-    if (quoteIndex >= 0) quotes.value.splice(quoteIndex, 1, listQuote)
-    else quotes.value.push(listQuote)
   } catch (error) {
     detailError.value = getStockErrorMessage(error)
   } finally {
@@ -248,21 +221,14 @@ const loadDetail = async (market, force = false) => {
 }
 
 async function loadChart(market, periodId, force = false) {
-  selectedPeriod.value = periodId
+  stockStore.selectPeriod(periodId)
   chartError.value = ''
-  const cacheKey = `${market.symbol}:${periodId}`
-  if (!force && chartCache.has(cacheKey)) {
-    chartData.value = chartCache.get(cacheKey)
-    isChartLoading.value = false
-    return
-  }
 
   const requestId = ++chartRequestId
   chartData.value = null
   isChartLoading.value = true
   try {
-    const result = await fetchStockChart(market, periodId)
-    chartCache.set(cacheKey, result)
+    const result = await stockStore.getChart(market, periodId, force)
     if (requestId === chartRequestId) chartData.value = result
   } catch (error) {
     if (requestId === chartRequestId) chartError.value = getChartErrorMessage(error)
@@ -272,38 +238,28 @@ async function loadChart(market, periodId, force = false) {
 }
 
 const retryAll = () => {
-  loadMarket()
+  loadMarket(true)
   loadDetail(selectedMarket.value, true)
 }
 
 const removeFavorite = (symbol) => {
-  favoriteSymbols.value = favoriteSymbols.value.filter((item) => item !== symbol)
+  stockStore.removeFavorite(symbol)
   favoriteMessage.value = '즐겨찾기에서 삭제했습니다.'
 }
 
 const toggleSelectedFavorite = () => {
   const symbol = selectedMarket.value.symbol
-  if (isSelectedFavorite.value) {
-    removeFavorite(symbol)
-    return
-  }
-  if (favoriteSymbols.value.length >= 6) {
+  const result = stockStore.toggleFavorite(symbol)
+  if (result === 'limit') {
     favoriteMessage.value = '즐겨찾기는 최대 6개까지 저장할 수 있습니다.'
     return
   }
-  favoriteSymbols.value = [...favoriteSymbols.value, symbol]
-  if (detail.value?.symbol === symbol) {
-    favoriteProfiles.value = {
-      ...favoriteProfiles.value,
-      [symbol]: { ...selectedMarket.value, name: detail.value.name, logo: detail.value.logo },
-    }
+  if (result === 'removed') {
+    favoriteMessage.value = '즐겨찾기에서 삭제했습니다.'
+    return
   }
-  favoriteMessage.value = `${selectedMarket.value.name}을(를) 즐겨찾기에 추가했습니다.`
+  if (result === 'added') favoriteMessage.value = `${selectedMarket.value.name}을(를) 즐겨찾기에 추가했습니다.`
 }
-
-watch(favoriteSymbols, (symbols) => {
-  localStorage.setItem(favoriteStorageKey, JSON.stringify(symbols))
-})
 
 onMounted(async () => {
   await loadMarket()
@@ -328,8 +284,10 @@ onMounted(async () => {
 
     <StockWatchlist
       :items="favoriteMarkets"
+      :recent-items="recentMarkets"
       :selected-symbol="selectedMarket.symbol"
       @select-market="loadDetail"
+      @select-recent="loadDetail"
       @remove-favorite="removeFavorite"
     />
     <p class="favorite-feedback" role="status" aria-live="polite">{{ favoriteMessage }}</p>

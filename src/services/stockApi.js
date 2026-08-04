@@ -89,7 +89,15 @@ export async function fetchStockProfile(market) {
   return {
     ...market,
     name: data.name || market.name,
+    symbol: data.ticker || market.symbol,
+    exchange: data.exchange || '미국 증권시장',
+    industry: data.finnhubIndustry || '정보 없음',
+    country: data.country || 'US',
+    currency: data.currency || 'USD',
     logo: data.logo || '',
+    website: data.weburl || '',
+    marketCap: Number.isFinite(data.marketCapitalization) ? data.marketCapitalization * 1_000_000 : null,
+    sharesOutstanding: Number.isFinite(data.shareOutstanding) ? data.shareOutstanding * 1_000_000 : null,
   }
 }
 
@@ -112,37 +120,11 @@ export async function fetchMarketStatus() {
 
 const getDateString = (date) => date.toISOString().slice(0, 10)
 
-export async function fetchStockDetail(market) {
-  const today = new Date()
-  const monthAgo = new Date(today)
-  monthAgo.setDate(monthAgo.getDate() - 30)
-
-  const [quote, profile, financials, news] = await Promise.all([
-    get('/quote', { symbol: market.symbol }),
-    get('/stock/profile2', { symbol: market.symbol }),
-    get('/stock/metric', { symbol: market.symbol, metric: 'all' }),
-    get('/company-news', {
-      symbol: market.symbol,
-      from: getDateString(monthAgo),
-      to: getDateString(today),
-    }),
-  ])
-
+export async function fetchStockMetrics(market) {
+  const financials = await get('/stock/metric', { symbol: market.symbol, metric: 'all' })
   const metric = financials.metric ?? {}
-  const marketCapInMillions = finiteOrNull(profile.marketCapitalization ?? metric.marketCapitalization)
-
   return {
-    ...market,
-    ...normalizeQuote(quote),
-    name: profile.name || market.name,
-    symbol: profile.ticker || market.symbol,
-    exchange: profile.exchange || '미국 증권시장',
-    industry: profile.finnhubIndustry || '정보 없음',
-    country: profile.country || 'US',
-    currency: profile.currency || 'USD',
-    logo: profile.logo || '',
-    website: profile.weburl || '',
-    marketCap: marketCapInMillions === null ? null : marketCapInMillions * 1_000_000,
+    marketCap: Number.isFinite(metric.marketCapitalization) ? metric.marketCapitalization * 1_000_000 : null,
     per: finiteOrNull(metric.peBasicExclExtraTTM ?? metric.peTTM),
     pbr: finiteOrNull(metric.pbQuarterly ?? metric.pb),
     eps: finiteOrNull(metric.epsBasicExclExtraItemsTTM ?? metric.epsTTM),
@@ -153,21 +135,50 @@ export async function fetchStockDetail(market) {
     averageVolume: Number.isFinite(metric['3MonthAverageTradingVolume'])
       ? metric['3MonthAverageTradingVolume'] * 1_000_000
       : null,
-    sharesOutstanding: Number.isFinite(profile.shareOutstanding)
-      ? profile.shareOutstanding * 1_000_000
-      : null,
-    news: Array.isArray(news)
-      ? news.slice(0, 8).map((item) => ({
-          id: item.id,
-          headline: item.headline,
-          summary: item.summary,
-          source: item.source,
-          url: item.url,
-          image: item.image,
-          publishedAt: item.datetime ? new Date(item.datetime * 1000).toISOString() : null,
-        }))
-      : [],
   }
+}
+
+export async function fetchStockNews(market) {
+  const today = new Date()
+  const monthAgo = new Date(today)
+  monthAgo.setDate(monthAgo.getDate() - 30)
+  const news = await get('/company-news', {
+    symbol: market.symbol,
+    from: getDateString(monthAgo),
+    to: getDateString(today),
+  })
+  return Array.isArray(news)
+    ? news.slice(0, 8).map((item) => ({
+        id: item.id,
+        headline: item.headline,
+        summary: item.summary,
+        source: item.source,
+        url: item.url,
+        image: item.image,
+        publishedAt: item.datetime ? new Date(item.datetime * 1000).toISOString() : null,
+      }))
+    : []
+}
+
+export function composeStockDetail(market, quote, profile, metrics, news) {
+  return {
+    ...market,
+    ...quote,
+    ...profile,
+    ...metrics,
+    marketCap: profile.marketCap ?? metrics.marketCap,
+    news,
+  }
+}
+
+export async function fetchStockDetail(market) {
+  const [quote, profile, metrics, news] = await Promise.all([
+    fetchStockQuote(market),
+    fetchStockProfile(market),
+    fetchStockMetrics(market),
+    fetchStockNews(market),
+  ])
+  return composeStockDetail(market, quote, profile, metrics, news)
 }
 
 export async function fetchStockChart(market, periodId) {

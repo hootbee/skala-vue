@@ -8,9 +8,13 @@ defineProps({
     type: String,
     default: '',
   },
+  recentItems: {
+    type: Array,
+    default: () => [],
+  },
 })
 
-defineEmits(['select-market', 'remove-favorite'])
+defineEmits(['select-market', 'remove-favorite', 'select-recent'])
 
 const priceFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -61,6 +65,24 @@ const formatPrice = (value) => Number.isFinite(value) ? priceFormatter.format(va
         >×</button>
       </article>
     </div>
+
+    <div class="recent-heading">
+      <h3>최근 본 종목</h3>
+      <span>최대 5개</span>
+    </div>
+    <p v-if="!recentItems.length" class="recent-empty">종목을 선택하면 최근 기록이 여기에 표시됩니다.</p>
+    <div v-else class="recent-list" aria-label="최근 본 종목 목록">
+      <button
+        v-for="item in recentItems"
+        :key="item.symbol"
+        type="button"
+        :class="{ selected: selectedSymbol === item.symbol }"
+        @click="$emit('select-recent', item)"
+      >
+        <strong>{{ item.symbol }}</strong>
+        <span>{{ item.name }}</span>
+      </button>
+    </div>
   </section>
 </template>
 
@@ -85,6 +107,15 @@ const formatPrice = (value) => Number.isFinite(value) ? priceFormatter.format(va
 .remove-favorite:hover { color: #9d4141; background: #fbeeee; }
 .favorite-main:focus-visible, .remove-favorite:focus-visible { outline: 3px solid #84c9f3; outline-offset: 2px; }
 .empty-state { margin: 0; padding: 20px; border: 1px dashed #bfd5e2; border-radius: 12px; color: var(--muted); background: #fbfdff; font-size: .76rem; text-align: center; }
+.recent-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.recent-heading h3 { margin: 0; font-size: .82rem; letter-spacing: -.02em; }
+.recent-heading span { color: var(--muted); font-size: .65rem; }
+.recent-list { display: flex; gap: 7px; margin-top: 10px; overflow-x: auto; padding: 1px 1px 4px; scrollbar-width: thin; }
+.recent-list button { display: flex; min-width: max-content; align-items: center; gap: 6px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink); background: #fff; cursor: pointer; }
+.recent-list button:hover { border-color: #a9cfe5; background: #f3f9fd; }
+.recent-list button.selected { border-color: var(--blue-500); color: var(--blue-700); background: var(--blue-100); }
+.recent-list strong { font-size: .69rem; }.recent-list span { color: var(--muted); font-size: .65rem; }
+.recent-empty { margin: 10px 0 0; color: var(--muted); font-size: .69rem; }
 @media (max-width: 900px) { .favorite-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 650px) { .watchlist { padding: 18px 14px; }.favorite-list { grid-template-columns: 1fr; }.favorite-main { min-height: 60px; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
