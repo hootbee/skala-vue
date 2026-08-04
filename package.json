@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "api": "node mock-api-server.js",
+    "dev:all": "concurrently --kill-others-on-fail --names VUE,API --prefix-colors cyan,magenta \"npm run dev\" \"npm run api\"",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -17,6 +19,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.1",
+    "concurrently": "^10.0.4",
     "vite": "^7.1.2"
   }
 }

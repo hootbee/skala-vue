@@ -13,6 +13,7 @@ import WeatherChatbot from './components/WeatherChatbot.vue'
           <RouterLink to="/weather">날씨</RouterLink>
           <RouterLink to="/about">서비스 소개</RouterLink>
           <RouterLink to="/stocks">주식 시세</RouterLink>
+          <RouterLink to="/api-lab">API 실습</RouterLink>
           <RouterLink class="subscribe-link" to="/subscribe">구독하기</RouterLink>
         </div>
         <UnitToggler />

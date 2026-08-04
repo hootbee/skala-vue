@@ -5,6 +5,7 @@ const routes = [
   { path: '/weather', name: 'weather', component: () => import('../views/WeatherHomeView.vue') },
   { path: '/about', name: 'about', component: () => import('../views/WeatherAboutView.vue') },
   { path: '/stocks', name: 'stocks', component: () => import('../views/StockChartView.vue') },
+  { path: '/api-lab', name: 'api-lab', component: () => import('../views/ApiLabView.vue') },
   { path: '/subscribe', name: 'subscribe', component: () => import('../views/SubscriptionCheckoutView.vue') },
   { path: '/weather/:cityId', name: 'weather-detail', component: () => import('../views/WeatherDetailView.vue') },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('../views/NotFoundView.vue') },
