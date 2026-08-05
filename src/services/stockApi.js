@@ -18,8 +18,15 @@ const marketEtfs = [
 
 const marketEtfCacheKey = 'skala-market-etf-quotes-v3'
 const marketEtfCacheTtl = 5 * 60_000
+const macroCacheKey = 'skala-market-macro-v1'
+const macroCacheTtl = 5 * 60_000
+const macroMarkets = [
+  { id: 'usdkrw', symbol: 'USD/KRW', name: '원·달러 환율', description: '미국 달러 기준' },
+  { id: 'gold', symbol: 'XAU/USD', name: '금 현물', description: '국제 금 시세' },
+]
 
 export const MARKET_ETFS = Object.freeze(marketEtfs)
+export const MARKET_MACRO = Object.freeze(macroMarkets)
 
 export const STOCK_MARKETS = [
   { id: 'nvidia', rank: 1, name: '엔비디아', symbol: 'NVDA' },
@@ -428,6 +435,38 @@ export async function fetchMarketEtfQuotes(force = false) {
     try { localStorage.setItem(marketEtfCacheKey, JSON.stringify({ cachedAt: Date.now(), data })) } catch {
       // 저장 공간을 사용할 수 없어도 현재 조회 결과는 표시합니다.
     }
+  }
+  return data
+}
+
+export async function fetchMarketMacro(force = false) {
+  const token = import.meta.env.VITE_TWELVE_DATA_API_KEY
+  if (!token) throw new Error('Twelve Data API 키가 설정되지 않았습니다.')
+  if (!force && typeof window !== 'undefined') {
+    try {
+      const cached = JSON.parse(localStorage.getItem(macroCacheKey) || 'null')
+      if (cached?.cachedAt && Date.now() - cached.cachedAt < macroCacheTtl && Array.isArray(cached.data)) return cached.data
+    } catch {
+      // 캐시를 읽지 못하면 새 데이터를 요청합니다.
+    }
+  }
+
+  const results = await Promise.allSettled(macroMarkets.map(async (market) => {
+    const { data } = await chartApi.get('/quote', { params: { symbol: market.symbol, apikey: token } })
+    if (data.status === 'error' || !Number.isFinite(Number(data.close))) throw new Error(data.message || `${market.name} 데이터를 불러오지 못했습니다.`)
+    return {
+      ...market,
+      price: Number(data.close),
+      change: Number(data.change),
+      changePercent: Number(data.percent_change),
+      previousClose: Number(data.previous_close),
+      updatedAt: data.datetime || null,
+    }
+  }))
+  const data = results.filter(({ status }) => status === 'fulfilled').map(({ value }) => value)
+  if (!data.length) throw results.find(({ status }) => status === 'rejected')?.reason ?? new Error('환율·금 지표를 불러오지 못했습니다.')
+  if (typeof window !== 'undefined') {
+    try { localStorage.setItem(macroCacheKey, JSON.stringify({ cachedAt: Date.now(), data })) } catch { /* 캐시 없이 계속 표시합니다. */ }
   }
   return data
 }

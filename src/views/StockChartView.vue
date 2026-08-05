@@ -8,6 +8,7 @@ import { useToast } from 'primevue/usetoast'
 import StockWatchlist from '../components/StockWatchlist.vue'
 import StockVolumeLeaders from '../components/StockVolumeLeaders.vue'
 import MarketIndexEtfs from '../components/MarketIndexEtfs.vue'
+import MarketMacroStrip from '../components/MarketMacroStrip.vue'
 import StockComparisonChart from '../components/StockComparisonChart.vue'
 import StockSectorHeatmap from '../components/StockSectorHeatmap.vue'
 import StockYearAgoCard from '../components/StockYearAgoCard.vue'
@@ -20,6 +21,7 @@ import {
   STOCK_RANKING_UPDATED_AT,
   getChartErrorMessage,
   fetchMarketEtfQuotes,
+  fetchMarketMacro,
   getStockErrorMessage,
 } from '../services/stockApi'
 import { useStockStore } from '../stores/stockStore'
@@ -48,6 +50,9 @@ const volumeRankingNotice = ref('')
 const marketEtfs = ref([])
 const isMarketEtfLoading = ref(true)
 const marketEtfError = ref('')
+const marketMacro = ref([])
+const isMarketMacroLoading = ref(true)
+const marketMacroError = ref('')
 const yearAgoPreview = ref({ symbol: 'MU', name: '마이크론', returnRate: null, loading: true })
 const marketBrief = computed(() => {
   const available = marketEtfs.value.filter(({ changePercent }) => Number.isFinite(changePercent))
@@ -439,6 +444,18 @@ const loadMarketEtfs = async (force = false) => {
   }
 }
 
+const loadMarketMacro = async (force = false) => {
+  isMarketMacroLoading.value = true
+  marketMacroError.value = ''
+  try {
+    marketMacro.value = await fetchMarketMacro(force)
+  } catch (error) {
+    marketMacroError.value = getChartErrorMessage(error)
+  } finally {
+    isMarketMacroLoading.value = false
+  }
+}
+
 const loadDetail = async (market, force = false) => {
   stockStore.selectStock(market.symbol)
   detailError.value = ''
@@ -551,6 +568,7 @@ const retryAll = () => {
     isInsightsLoaded.value = false
   }
   loadMarketEtfs(true)
+  loadMarketMacro(true)
   loadYearAgoPreview()
   loadDetail(selectedMarket.value, true)
 }
@@ -584,6 +602,7 @@ onMounted(async () => {
   await loadMarket()
   loadFavoriteProfiles()
   loadMarketEtfs()
+  loadMarketMacro()
   loadYearAgoPreview()
   loadDetail(selectedMarket.value)
 })
@@ -621,6 +640,13 @@ onMounted(async () => {
         </dl>
       </aside>
     </section>
+
+    <MarketMacroStrip
+      :items="marketMacro"
+      :is-loading="isMarketMacroLoading"
+      :error="marketMacroError"
+      @retry="loadMarketMacro(true)"
+    />
 
     <details class="market-insights" :open="isMarketInsightsOpen" @toggle="toggleMarketInsights">
       <summary>

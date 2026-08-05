@@ -14,7 +14,7 @@ const chart = ref(null)
 const quote = ref(null)
 const isLoading = ref(false)
 const error = ref('')
-const investmentAmount = 1000
+const investmentAmount = 1_400_000
 
 const availableMarkets = computed(() => props.markets.filter((market) => market?.symbol))
 const selectedMarket = computed(() => availableMarkets.value.find(({ symbol }) => symbol === selectedSymbol.value))
@@ -27,7 +27,7 @@ const returnRate = computed(() => startPoint.value?.close && Number.isFinite(cur
   : null)
 const finalValue = computed(() => returnRate.value === null ? null : investmentAmount * (1 + returnRate.value / 100))
 const formatPrice = (value) => Number.isFinite(value) ? `$${value.toFixed(2)}` : '—'
-const formatMoney = (value) => Number.isFinite(value) ? `$${value.toFixed(0)}` : '—'
+const formatMoney = (value) => Number.isFinite(value) ? new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 }).format(value) : '—'
 const formatDate = (value) => value ? new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(`${value.slice(0, 10)}T00:00:00`)) : '날짜 없음'
 
 const load = async () => {
@@ -72,7 +72,7 @@ watch(selectedSymbol, load)
       <dl><div><dt>가정 매수일</dt><dd>{{ formatDate(startPoint.datetime) }}</dd></div><div><dt>매수 가격</dt><dd>{{ formatPrice(startPoint.close) }}</dd></div><div><dt>현재 가격</dt><dd>{{ formatPrice(currentPrice) }}</dd></div><div><dt> {{ formatMoney(investmentAmount) }} 투자했다면</dt><dd :class="{ negative: returnRate < 0 }">{{ formatMoney(finalValue) }}</dd></div></dl>
     </div>
     <p v-else class="year-ago-state">지난 1년 데이터를 표시할 수 없습니다.</p>
-    <p class="year-ago-note">{{ periodLabel }} 차트의 종가 기준이며, 수수료·배당·환율은 반영하지 않은 참고용 계산입니다.</p>
+    <p class="year-ago-note">약 140만원을 투자했다고 가정한 단순 계산입니다. {{ periodLabel }} 차트의 종가 기준이며, 수수료·배당·환율은 반영하지 않은 참고용 계산입니다.</p>
   </section>
 </template>
 
