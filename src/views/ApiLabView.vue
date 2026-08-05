@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import SelectButton from 'primevue/selectbutton'
 import { useToast } from 'primevue/usetoast'
+import AuthManager from '../components/api-lab/AuthManager.vue'
 import PostManager from '../components/api-lab/PostManager.vue'
 import ProductManager from '../components/api-lab/ProductManager.vue'
 import { systemApi } from '../services/mockApi.js'
@@ -12,6 +13,7 @@ const activeTab = ref('products')
 const tabOptions = [
   { label: '상품 API', value: 'products' },
   { label: '게시글 API', value: 'posts' },
+  { label: '인증 API', value: 'auth' },
 ]
 const toast = useToast()
 const health = ref(null)
@@ -37,7 +39,7 @@ async function checkHealth({ quiet = false } = {}) {
 }
 
 async function resetAllData() {
-  if (!window.confirm('상품과 게시글 데이터를 처음 상태로 되돌릴까요?')) return
+  if (!window.confirm('상품·게시글·회원 데이터와 로그인 세션을 처음 상태로 되돌릴까요?')) return
   isResetting.value = true
   try {
     const result = await systemApi.reset()
@@ -60,11 +62,11 @@ onMounted(() => checkHealth({ quiet: true }))
       <div class="header-copy">
         <p class="eyebrow">VUE 3 · AXIOS · NODE HTTP</p>
         <h1>Mock API 실습실</h1>
-        <p>상품과 게시글 데이터를 직접 조회하고 변경하며 Vue의 비동기 통신과 REST API 흐름을 익혀보세요.</p>
+        <p>상품·게시글 CRUD와 회원가입·로그인을 직접 실행하며 Vue의 비동기 통신과 REST API 흐름을 익혀보세요.</p>
       </div>
       <aside class="server-status" aria-live="polite">
         <span class="status-dot" :class="{ online: health }" aria-hidden="true"></span>
-        <div><strong>{{ health ? 'API 연결됨' : 'API 연결 확인 필요' }}</strong><small v-if="health">상품 {{ health.productCount }}개 · 게시글 {{ health.postCount }}개</small><small v-else>localhost:3001 · npm run dev:all</small></div>
+        <div><strong>{{ health ? 'API 연결됨' : 'API 연결 확인 필요' }}</strong><small v-if="health">상품 {{ health.productCount }}개 · 게시글 {{ health.postCount }}개 · 회원 {{ health.userCount }}명 · 세션 {{ health.sessionCount }}개</small><small v-else>localhost:3001 · npm run dev:all</small></div>
         <button type="button" :disabled="isChecking" @click="checkHealth()">{{ isChecking ? '확인 중' : '다시 확인' }}</button>
       </aside>
     </header>
@@ -84,7 +86,8 @@ onMounted(() => checkHealth({ quiet: true }))
       </div>
 
       <ProductManager v-if="activeTab === 'products'" role="tabpanel" aria-label="상품 API" :refresh-key="refreshKey" @notify="showNotice" @changed="checkHealth({ quiet: true })" />
-      <PostManager v-else role="tabpanel" aria-label="게시글 API" :refresh-key="refreshKey" @notify="showNotice" @changed="checkHealth({ quiet: true })" />
+      <PostManager v-else-if="activeTab === 'posts'" role="tabpanel" aria-label="게시글 API" :refresh-key="refreshKey" @notify="showNotice" @changed="checkHealth({ quiet: true })" />
+      <AuthManager v-else role="tabpanel" aria-label="회원가입 및 로그인 API" :refresh-key="refreshKey" @notify="showNotice" @changed="checkHealth({ quiet: true })" />
 
       <footer class="flow-note" aria-label="API 통신 구조">
         <code>Vue :5173</code><span aria-hidden="true">→</span><span>Axios 요청</span><span aria-hidden="true">→</span><code>Mock API :3001</code>
@@ -122,5 +125,5 @@ h1 { margin: 0; font-size: clamp(2.3rem, 6vw, 4rem); line-height: 1.08; letter-s
 .flow-note p { flex-basis: 100%; margin: 5px 0 0; text-align: center; }
 button:disabled { cursor: wait; opacity: .6; }
 @media (max-width: 820px) { .lab-header { align-items: stretch; flex-direction: column; } .server-status { min-width: 0; } }
-@media (max-width: 520px) { .lab-page { width: min(100% - 24px, 1120px); padding-top: 16px; } .lab-header { gap: 24px; padding: 28px 0 32px; } .server-status { grid-template-columns: auto 1fr; } .server-status button { grid-column: 1 / -1; } .toolbar { align-items: stretch; flex-direction: column; } .tabs { display: grid; grid-template-columns: 1fr 1fr; } .reset-button { width: 100%; } }
+@media (max-width: 520px) { .lab-page { width: min(100% - 24px, 1120px); padding-top: 16px; } .lab-header { gap: 24px; padding: 28px 0 32px; } .server-status { grid-template-columns: auto 1fr; } .server-status button { grid-column: 1 / -1; } .toolbar { align-items: stretch; flex-direction: column; } .tabs { display: grid; grid-template-columns: repeat(3, 1fr); } .tabs :deep(.p-togglebutton) { padding-inline: 6px; } .reset-button { width: 100%; } }
 </style>

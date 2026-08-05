@@ -26,6 +26,15 @@ const resourceApi = (resource) => ({
 export const productApi = resourceApi('products')
 export const postApi = resourceApi('posts')
 
+const authHeaders = (token) => ({ Authorization: `Bearer ${token}` })
+
+export const authApi = {
+  async register(payload) { return (await http.post('/auth/register', payload)).data },
+  async login(payload) { return (await http.post('/auth/login', payload)).data },
+  async getMe(token) { return (await http.get('/auth/me', { headers: authHeaders(token) })).data },
+  async logout(token) { return (await http.post('/auth/logout', {}, { headers: authHeaders(token) })).data },
+}
+
 export const systemApi = {
   async getHealth() { return (await http.get('/health')).data },
   async reset() { return (await http.post('/reset')).data },
