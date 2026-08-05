@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import Skeleton from 'primevue/skeleton'
 import BaseDashboardCard from '../components/exercise/BaseDashboardCard.vue'
 import SearchBar from '../components/exercise/SearchBar.vue'
 import WeatherCard from '../components/exercise/WeatherCard.vue'
@@ -89,7 +90,9 @@ onMounted(loadWeather)
           <SearchBar :search-query="searchQuery" @update-query="updateSearchQuery" />
         </div>
 
-        <p v-if="isLoading" class="state-message" role="status">실시간 날씨를 불러오는 중입니다…</p>
+        <div v-if="isLoading" class="weather-grid loading-grid" role="status" aria-label="실시간 날씨를 불러오는 중입니다">
+          <div v-for="index in 3" :key="index" class="weather-card-skeleton"><Skeleton width="42%" height="1rem" /><Skeleton width="65%" height="2.2rem" /><Skeleton width="100%" height="4rem" /></div>
+        </div>
         <div v-else-if="filteredWeatherList.length" class="weather-grid">
           <WeatherCard
             v-for="weather in filteredWeatherList"
@@ -126,6 +129,8 @@ onMounted(loadWeather)
   margin: 0 auto;
   padding: 40px 0 56px;
 }
+
+.weather-card-skeleton { display: grid; min-height: 230px; align-content: start; gap: 18px; padding: 24px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
 
 .hero {
   display: flex;

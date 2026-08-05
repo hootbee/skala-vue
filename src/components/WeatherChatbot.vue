@@ -10,6 +10,10 @@ import {
   WEATHER_CITIES,
 } from '../services/weatherApi'
 
+defineProps({
+  suppressed: { type: Boolean, default: false },
+})
+
 const CHAT_REGIONS = [
   ...KOREA_WEATHER_REGIONS,
   ...WEATHER_CITIES.filter(({ name }) => name === '판교'),
@@ -217,7 +221,13 @@ const askQuestion = async (preset) => {
 </script>
 
 <template>
-  <div class="chatbot-wrap" @keydown.esc="isOpen = false">
+  <div
+    class="chatbot-wrap"
+    :class="{ suppressed }"
+    :aria-hidden="suppressed || undefined"
+    :inert="suppressed"
+    @keydown.esc="isOpen = false"
+  >
     <section v-if="isOpen" id="weather-chatbot" class="chatbot-panel" aria-label="룰베이스 날씨 챗봇">
       <header class="chatbot-header">
         <div class="bot-avatar" aria-hidden="true">W</div>
@@ -267,7 +277,8 @@ const askQuestion = async (preset) => {
 </template>
 
 <style scoped>
-.chatbot-wrap { position: fixed; right: 24px; bottom: 24px; z-index: 5000; isolation: isolate; }
+.chatbot-wrap { position: fixed; right: 24px; bottom: 24px; z-index: 5000; isolation: isolate; transition: opacity .16s ease, visibility .16s ease, transform .16s ease; }
+.chatbot-wrap.suppressed { visibility: hidden; opacity: 0; pointer-events: none; transform: translateY(8px); }
 .chatbot-toggle { display: flex; align-items: center; min-height: 54px; gap: 10px; padding: 8px 18px 8px 8px; border: 0; border-radius: 999px; color: #fff; background: #17649a; box-shadow: 0 14px 34px rgba(24, 87, 131, .28); transition: transform .18s, background .18s; }
 .chatbot-toggle:hover { background: #12527e; transform: translateY(-2px); }
 .chatbot-toggle span { display: grid; width: 38px; height: 38px; border-radius: 50%; place-items: center; color: #17649a; background: #fff; font-size: 1.25rem; }

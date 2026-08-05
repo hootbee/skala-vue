@@ -47,6 +47,75 @@ textarea:focus-visible {
   outline-offset: 3px;
 }
 
+.mobile-drawer.p-drawer {
+  width: min(86vw, 340px);
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.mobile-drawer .p-drawer-header {
+  padding: 22px 20px 12px;
+  color: var(--ink);
+}
+
+.mobile-drawer .p-drawer-title {
+  font-size: 1.15rem;
+  font-weight: 850;
+}
+
+.mobile-drawer .p-drawer-content {
+  padding: 12px 20px 24px;
+}
+
+.p-toast {
+  width: min(360px, calc(100vw - 24px));
+}
+
+.p-toast-message {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, .97);
+  box-shadow: var(--shadow);
+}
+
+.p-autocomplete-overlay {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(35, 81, 112, .16);
+}
+
+.p-autocomplete-list {
+  margin: 0;
+  padding: 6px;
+}
+
+.p-autocomplete-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px;
+  border-radius: 8px;
+  color: var(--ink);
+}
+
+.p-autocomplete-option:hover,
+.p-autocomplete-option-selected,
+.p-autocomplete-option.p-focus {
+  color: var(--blue-700);
+  background: var(--blue-100);
+}
+
+.p-autocomplete-option strong,
+.p-autocomplete-option small {
+  display: block;
+}
+
+.p-autocomplete-option strong { font-size: .78rem; }
+.p-autocomplete-option small { margin-top: 2px; color: var(--muted); font-size: .65rem; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;

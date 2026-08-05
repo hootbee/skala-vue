@@ -1,6 +1,7 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
-import ApiStatusBanner from '../components/api-lab/ApiStatusBanner.vue'
+import { onMounted, ref } from 'vue'
+import SelectButton from 'primevue/selectbutton'
+import { useToast } from 'primevue/usetoast'
 import PostManager from '../components/api-lab/PostManager.vue'
 import ProductManager from '../components/api-lab/ProductManager.vue'
 import { systemApi } from '../services/mockApi.js'
@@ -8,17 +9,19 @@ import { systemApi } from '../services/mockApi.js'
 document.title = 'Mock API 실습 | SKALA Weather'
 
 const activeTab = ref('products')
+const tabOptions = [
+  { label: '상품 API', value: 'products' },
+  { label: '게시글 API', value: 'posts' },
+]
+const toast = useToast()
 const health = ref(null)
 const isChecking = ref(false)
 const isResetting = ref(false)
 const refreshKey = ref(0)
-const notice = ref(null)
-let noticeTimer
 
 function showNotice(payload) {
-  notice.value = payload
-  clearTimeout(noticeTimer)
-  noticeTimer = setTimeout(() => { notice.value = null }, 4000)
+  const severity = payload.type === 'error' ? 'error' : payload.type === 'success' ? 'success' : 'info'
+  toast.add({ severity, summary: payload.type === 'error' ? '요청 실패' : '작업 완료', detail: payload.message, life: 4000 })
 }
 
 async function checkHealth({ quiet = false } = {}) {
@@ -49,7 +52,6 @@ async function resetAllData() {
 }
 
 onMounted(() => checkHealth({ quiet: true }))
-onBeforeUnmount(() => clearTimeout(noticeTimer))
 </script>
 
 <template>
@@ -69,16 +71,20 @@ onBeforeUnmount(() => clearTimeout(noticeTimer))
 
     <section class="lab-workspace" aria-label="Mock API 작업 공간">
       <div class="toolbar">
-        <div class="tabs" role="tablist" aria-label="API 실습 선택">
-          <button id="product-tab" role="tab" :aria-selected="activeTab === 'products'" :class="{ active: activeTab === 'products' }" @click="activeTab = 'products'">상품 API</button>
-          <button id="post-tab" role="tab" :aria-selected="activeTab === 'posts'" :class="{ active: activeTab === 'posts' }" @click="activeTab = 'posts'">게시글 API</button>
-        </div>
+        <SelectButton
+          v-model="activeTab"
+          class="tabs"
+          :options="tabOptions"
+          option-label="label"
+          option-value="value"
+          aria-label="API 실습 선택"
+          :allow-empty="false"
+        />
         <button class="reset-button" type="button" :disabled="isResetting" @click="resetAllData">{{ isResetting ? '초기화 중…' : 'Mock 데이터 초기화' }}</button>
       </div>
 
-      <ApiStatusBanner v-if="notice" :type="notice.type" :message="notice.message" />
-      <ProductManager v-if="activeTab === 'products'" role="tabpanel" aria-labelledby="product-tab" :refresh-key="refreshKey" @notify="showNotice" @changed="checkHealth({ quiet: true })" />
-      <PostManager v-else role="tabpanel" aria-labelledby="post-tab" :refresh-key="refreshKey" @notify="showNotice" @changed="checkHealth({ quiet: true })" />
+      <ProductManager v-if="activeTab === 'products'" role="tabpanel" aria-label="상품 API" :refresh-key="refreshKey" @notify="showNotice" @changed="checkHealth({ quiet: true })" />
+      <PostManager v-else role="tabpanel" aria-label="게시글 API" :refresh-key="refreshKey" @notify="showNotice" @changed="checkHealth({ quiet: true })" />
 
       <footer class="flow-note" aria-label="API 통신 구조">
         <code>Vue :5173</code><span aria-hidden="true">→</span><span>Axios 요청</span><span aria-hidden="true">→</span><code>Mock API :3001</code>
@@ -106,9 +112,9 @@ h1 { margin: 0; font-size: clamp(2.3rem, 6vw, 4rem); line-height: 1.08; letter-s
 .lab-workspace { padding-top: 24px; }
 .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 .tabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: 11px; background: #e6eef3; }
-.tabs button { min-height: 40px; padding: 8px 16px; border: 0; border-radius: 8px; color: var(--muted); background: transparent; font: inherit; font-size: .8rem; font-weight: 800; }
-.tabs button:hover { color: var(--blue-700); }
-.tabs button.active { color: var(--blue-700); background: #fff; box-shadow: 0 2px 7px rgba(35, 81, 112, .1); }
+.tabs :deep(.p-togglebutton) { min-height: 40px; padding: 8px 16px; border: 0; border-radius: 8px; color: var(--muted); background: transparent; box-shadow: none; font-size: .8rem; font-weight: 800; }
+.tabs :deep(.p-togglebutton:hover) { color: var(--blue-700); background: rgba(255,255,255,.55); }
+.tabs :deep(.p-togglebutton-checked) { color: var(--blue-700); background: #fff; box-shadow: 0 2px 7px rgba(35, 81, 112, .1); }
 .reset-button { min-height: 40px; padding: 8px 13px; border: 1px solid #eacaca; border-radius: 8px; color: #a24646; background: #fff6f6; font: inherit; font-size: .76rem; font-weight: 800; }
 .reset-button:hover { background: #ffecec; }
 .flow-note { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 9px; margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--line); color: var(--muted); font-size: .74rem; }

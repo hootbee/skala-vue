@@ -1,6 +1,10 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
+import AutoComplete from 'primevue/autocomplete'
+import SelectButton from 'primevue/selectbutton'
+import Skeleton from 'primevue/skeleton'
+import { useToast } from 'primevue/usetoast'
 import StockWatchlist from '../components/StockWatchlist.vue'
 import StockFinancials from '../components/StockFinancials.vue'
 import StockAiAnalysis from '../components/StockAiAnalysis.vue'
@@ -17,7 +21,9 @@ import { useStockStore } from '../stores/stockStore'
 document.title = '미국 주식 시세 | SKALA Weather'
 
 const searchQuery = ref('')
+const searchSuggestions = ref(STOCK_MARKETS)
 const stockStore = useStockStore()
+const toast = useToast()
 const { favoriteSymbols, recentSymbols, selectedPeriod, selectedSymbol, quoteCache, profileCache } = storeToRefs(stockStore)
 const selectedMarket = computed(() =>
   STOCK_MARKETS.find(({ symbol }) => symbol === selectedSymbol.value) ?? STOCK_MARKETS[0],
@@ -30,6 +36,8 @@ const isDetailLoading = ref(true)
 const listError = ref('')
 const detailError = ref('')
 const chartData = ref(null)
+const chartSvg = ref(null)
+const hoveredChartIndex = ref(null)
 const isChartLoading = ref(true)
 const chartError = ref('')
 const activeDetailTab = ref('quote')
@@ -49,6 +57,19 @@ const candlePeriodLabels = {
   '1W': '1시간봉 캔들',
   '1M': '일봉 캔들',
 }
+const detailTabOptions = [
+  { label: '시세', value: 'quote' },
+  { label: '재무 추이', value: 'financials' },
+  { label: 'AI 전략', value: 'analysis' },
+  { label: '뉴스', value: 'news' },
+]
+const chartPeriodOptions = STOCK_CHART_PERIODS.map((period) => ({
+  label: period.label,
+  value: period.id,
+}))
+const selectedPeriodLabel = computed(() =>
+  STOCK_CHART_PERIODS.find(({ id }) => id === selectedPeriod.value)?.label ?? selectedPeriod.value,
+)
 
 const filteredMarkets = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
@@ -57,6 +78,26 @@ const filteredMarkets = computed(() => {
     market.name.toLowerCase().includes(query) || market.symbol.toLowerCase().includes(query),
   )
 })
+
+const updateSearchSuggestions = ({ query }) => {
+  const normalizedQuery = query.trim().toLowerCase()
+  searchQuery.value = query
+  searchSuggestions.value = normalizedQuery
+    ? STOCK_MARKETS.filter((market) =>
+        market.name.toLowerCase().includes(normalizedQuery)
+        || market.symbol.toLowerCase().includes(normalizedQuery),
+      )
+    : STOCK_MARKETS
+}
+
+const updateSearchQuery = (value) => {
+  searchQuery.value = typeof value === 'string' ? value : ''
+}
+
+const selectSearchSuggestion = ({ value }) => {
+  searchQuery.value = ''
+  loadDetail(value)
+}
 
 const quoteBySymbol = computed(() => quoteCache.value)
 const favoriteMarkets = computed(() => favoriteSymbols.value
@@ -89,6 +130,14 @@ const chartPlotSeries = computed(() => {
   const step = Math.ceil(chartSeries.value.length / 240)
   return chartSeries.value.filter((_, index) => index % step === 0 || index === chartSeries.value.length - 1)
 })
+const hoveredChartPoint = computed(() =>
+  hoveredChartIndex.value === null ? null : chartPlotSeries.value[hoveredChartIndex.value] ?? null,
+)
+const hoveredChartX = computed(() => {
+  if (hoveredChartIndex.value === null || !chartPlotSeries.value.length) return 0
+  if (isCandlePeriod.value) return ((hoveredChartIndex.value + .5) / chartPlotSeries.value.length) * 100
+  return (hoveredChartIndex.value / Math.max(chartPlotSeries.value.length - 1, 1)) * 100
+})
 const chartStats = computed(() => {
   if (!chartSeries.value.length) return null
   const closes = chartSeries.value.map(({ close }) => close)
@@ -105,6 +154,11 @@ const chartStats = computed(() => {
     change,
     percentChange: first ? (change / first) * 100 : 0,
   }
+})
+const hoveredChartY = computed(() => {
+  if (!hoveredChartPoint.value || !chartStats.value) return 50
+  const range = chartStats.value.max - chartStats.value.min || 1
+  return 88 - ((hoveredChartPoint.value.close - chartStats.value.min) / range) * 72
 })
 const chartPoints = computed(() => {
   if (!chartPlotSeries.value.length || !chartStats.value) return ''
@@ -150,6 +204,17 @@ const volumeBars = computed(() => {
     width,
   }))
 })
+const chartAxisLabels = computed(() => {
+  const length = chartPlotSeries.value.length
+  if (!length) return []
+  const indexes = [...new Set([0, .25, .5, .75, 1].map((ratio) => Math.round((length - 1) * ratio)))]
+  return indexes.map((index, position) => ({
+    index,
+    label: formatChartDate(chartPlotSeries.value[index]?.datetime),
+    position: (index / Math.max(length - 1, 1)) * 100,
+    align: position === 0 ? 'start' : position === indexes.length - 1 ? 'end' : 'center',
+  }))
+})
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -189,6 +254,32 @@ const formatChartDate = (value) => {
   return new Intl.DateTimeFormat('ko-KR', { year: '2-digit', month: 'short', day: 'numeric' })
     .format(new Date(`${value.slice(0, 10)}T00:00:00`))
 }
+const formatTooltipDate = (value) => {
+  if (!value) return '날짜 정보 없음'
+  const [date = '', time = ''] = value.split(' ')
+  const [year, month, day] = date.split('-')
+  const dateLabel = [year, month, day].filter(Boolean).join('.')
+  return selectedPeriod.value === '1D' && time ? `${dateLabel} ${time.slice(0, 5)}` : dateLabel
+}
+
+const updateChartHover = (event) => {
+  if (!chartSvg.value || !chartPlotSeries.value.length) return
+  const bounds = chartSvg.value.getBoundingClientRect()
+  const ratio = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width))
+  hoveredChartIndex.value = Math.round(ratio * (chartPlotSeries.value.length - 1))
+}
+
+const showLatestChartPoint = () => {
+  if (chartPlotSeries.value.length) hoveredChartIndex.value = chartPlotSeries.value.length - 1
+}
+
+const moveChartHover = (offset) => {
+  if (!chartPlotSeries.value.length) return
+  const current = hoveredChartIndex.value ?? chartPlotSeries.value.length - 1
+  hoveredChartIndex.value = Math.min(chartPlotSeries.value.length - 1, Math.max(0, current + offset))
+}
+
+const clearChartHover = () => { hoveredChartIndex.value = null }
 
 const loadMarket = async (force = false) => {
   isListLoading.value = true
@@ -307,6 +398,7 @@ function selectDetailTab(tab) {
 async function loadChart(market, periodId, force = false) {
   stockStore.selectPeriod(periodId)
   chartError.value = ''
+  hoveredChartIndex.value = null
 
   const requestId = ++chartRequestId
   chartData.value = null
@@ -329,6 +421,7 @@ const retryAll = () => {
 const removeFavorite = (symbol) => {
   stockStore.removeFavorite(symbol)
   favoriteMessage.value = '즐겨찾기에서 삭제했습니다.'
+  toast.add({ severity: 'info', summary: '즐겨찾기', detail: favoriteMessage.value, life: 2600 })
 }
 
 const toggleSelectedFavorite = () => {
@@ -336,13 +429,18 @@ const toggleSelectedFavorite = () => {
   const result = stockStore.toggleFavorite(symbol)
   if (result === 'limit') {
     favoriteMessage.value = '즐겨찾기는 최대 6개까지 저장할 수 있습니다.'
+    toast.add({ severity: 'warn', summary: '즐겨찾기 제한', detail: favoriteMessage.value, life: 3200 })
     return
   }
   if (result === 'removed') {
     favoriteMessage.value = '즐겨찾기에서 삭제했습니다.'
+    toast.add({ severity: 'info', summary: '즐겨찾기', detail: favoriteMessage.value, life: 2600 })
     return
   }
-  if (result === 'added') favoriteMessage.value = `${selectedMarket.value.name}을(를) 즐겨찾기에 추가했습니다.`
+  if (result === 'added') {
+    favoriteMessage.value = `${selectedMarket.value.name} 종목을 즐겨찾기에 추가했습니다.`
+    toast.add({ severity: 'success', summary: '즐겨찾기', detail: favoriteMessage.value, life: 2600 })
+  }
 }
 
 onMounted(async () => {
@@ -382,12 +480,32 @@ onMounted(async () => {
           <div><p class="eyebrow">MARKET CAP TOP 30</p><h2 id="stock-list-title">종목 찾기</h2></div>
           <span>{{ STOCK_RANKING_UPDATED_AT.replaceAll('-', '.') }} 기준</span>
         </div>
-        <label class="stock-search">
-          <span>종목명 또는 코드 검색</span>
-          <input v-model="searchQuery" type="search" placeholder="예: 애플 또는 AAPL" autocomplete="off">
-        </label>
+        <div class="stock-search">
+          <label for="stock-search-input">종목명 또는 코드 검색</label>
+          <AutoComplete
+            input-id="stock-search-input"
+            :model-value="searchQuery"
+            :suggestions="searchSuggestions"
+            option-label="name"
+            placeholder="예: 애플 또는 AAPL"
+            autocomplete="off"
+            complete-on-focus
+            fluid
+            @complete="updateSearchSuggestions"
+            @update:model-value="updateSearchQuery"
+            @option-select="selectSearchSuggestion"
+          >
+            <template #option="{ option }">
+              <span class="search-option-rank">{{ option.rank }}</span>
+              <span><strong>{{ option.name }}</strong><small>{{ option.symbol }} · {{ option.exchange }}</small></span>
+            </template>
+            <template #empty>일치하는 종목이 없습니다.</template>
+          </AutoComplete>
+        </div>
 
-        <p v-if="isListLoading" class="list-state" role="status">현재 시세를 불러오는 중입니다…</p>
+        <div v-if="isListLoading" class="list-skeletons" role="status" aria-label="현재 시세를 불러오는 중입니다">
+          <Skeleton v-for="index in 7" :key="index" height="48px" border-radius="10px" />
+        </div>
         <div v-else-if="listError" class="list-state error" role="alert">
           <p>{{ listError }}</p><button type="button" @click="loadMarket">다시 시도</button>
         </div>
@@ -415,8 +533,11 @@ onMounted(async () => {
       </aside>
 
       <section class="stock-detail" aria-live="polite">
-        <div v-if="isDetailLoading" class="detail-state" role="status">
-          <span class="loader" aria-hidden="true"></span><p>{{ selectedMarket.name }} 정보를 불러오는 중입니다…</p>
+        <div v-if="isDetailLoading" class="detail-skeleton" role="status" :aria-label="`${selectedMarket.name} 정보를 불러오는 중입니다`">
+          <div class="detail-skeleton-heading"><Skeleton shape="circle" size="52px" /><div><Skeleton width="8rem" height="1rem" /><Skeleton width="12rem" height="1.8rem" /></div></div>
+          <Skeleton width="100%" height="48px" border-radius="11px" />
+          <Skeleton width="55%" height="64px" />
+          <Skeleton width="100%" height="180px" border-radius="12px" />
         </div>
         <div v-else-if="detailError" class="detail-state error" role="alert">
           <strong>종목 정보를 불러오지 못했습니다.</strong><p>{{ detailError }}</p>
@@ -441,12 +562,16 @@ onMounted(async () => {
             </div>
           </header>
 
-          <nav class="detail-tabs" aria-label="종목 상세 정보">
-            <button type="button" :class="{ active: activeDetailTab === 'quote' }" :aria-pressed="activeDetailTab === 'quote'" @click="selectDetailTab('quote')">시세</button>
-            <button type="button" :class="{ active: activeDetailTab === 'financials' }" :aria-pressed="activeDetailTab === 'financials'" @click="selectDetailTab('financials')">재무 추이</button>
-            <button type="button" :class="{ active: activeDetailTab === 'analysis' }" :aria-pressed="activeDetailTab === 'analysis'" @click="selectDetailTab('analysis')">AI 전략</button>
-            <button type="button" :class="{ active: activeDetailTab === 'news' }" :aria-pressed="activeDetailTab === 'news'" @click="selectDetailTab('news')">뉴스</button>
-          </nav>
+          <SelectButton
+            class="detail-tabs"
+            :model-value="activeDetailTab"
+            :options="detailTabOptions"
+            option-label="label"
+            option-value="value"
+            aria-label="종목 상세 정보"
+            :allow-empty="false"
+            @update:model-value="selectDetailTab"
+          />
 
           <template v-if="activeDetailTab === 'quote'">
           <section class="price-summary" aria-labelledby="current-price-title">
@@ -481,19 +606,24 @@ onMounted(async () => {
               <div><p class="eyebrow">PRICE HISTORY</p><h3 id="price-chart-title">기간별 가격 차트</h3></div>
               <span>{{ chartTypeLabel }} · Twelve Data</span>
             </div>
-            <div class="period-tabs" aria-label="차트 기간 선택">
-              <button
-                v-for="period in STOCK_CHART_PERIODS"
-                :key="period.id"
-                type="button"
-                :class="{ active: selectedPeriod === period.id }"
-                :aria-pressed="selectedPeriod === period.id"
-                @click="loadChart(selectedMarket, period.id)"
-              >{{ period.label }}</button>
+            <div class="period-control">
+              <SelectButton
+                class="period-tabs"
+                :model-value="selectedPeriod"
+                :options="chartPeriodOptions"
+                option-label="label"
+                option-value="value"
+                aria-label="차트 기간 선택"
+                :allow-empty="false"
+                @update:model-value="loadChart(selectedMarket, $event)"
+              >
+                <template #option="{ option }"><span v-if="selectedPeriod === option.value" class="period-check" aria-hidden="true">✓</span>{{ option.label }}</template>
+              </SelectButton>
+              <p class="selected-period-status" aria-live="polite">선택 기간 <strong>{{ selectedPeriodLabel }}</strong></p>
             </div>
 
             <div v-if="isChartLoading" class="chart-state" role="status">
-              <span class="loader" aria-hidden="true"></span><p>차트 데이터를 불러오는 중입니다…</p>
+              <Skeleton width="38%" height="1.4rem" /><Skeleton width="100%" height="220px" border-radius="10px" /><p>차트 데이터를 불러오는 중입니다…</p>
             </div>
             <div v-else-if="chartError" class="chart-state error" role="alert">
               <strong>차트를 불러오지 못했습니다.</strong><p>{{ chartError }}</p>
@@ -507,13 +637,28 @@ onMounted(async () => {
                   ({{ chartStats.percentChange >= 0 ? '+' : '' }}{{ formatNumber(chartStats.percentChange) }}%)
                 </span>
               </div>
-              <div class="chart-canvas">
+              <p class="chart-interaction-hint">커서를 올리거나 좌우 방향키를 눌러 시점별 OHLCV 데이터를 확인하세요.</p>
+              <div
+                class="chart-canvas"
+                tabindex="0"
+                aria-label="차트 데이터 탐색"
+                :aria-describedby="hoveredChartPoint ? 'chart-point-tooltip' : undefined"
+                @pointermove="updateChartHover"
+                @pointerleave="clearChartHover"
+                @focus="showLatestChartPoint"
+                @blur="clearChartHover"
+                @keydown.left.prevent="moveChartHover(-1)"
+                @keydown.right.prevent="moveChartHover(1)"
+                @keydown.home.prevent="hoveredChartIndex = 0"
+                @keydown.end.prevent="showLatestChartPoint"
+              >
                 <div class="chart-y-axis" aria-hidden="true">
                   <span>{{ formatPrice(chartStats.max) }}</span>
                   <span>{{ formatPrice((chartStats.max + chartStats.min) / 2) }}</span>
                   <span>{{ formatPrice(chartStats.min) }}</span>
                 </div>
                 <svg
+                  ref="chartSvg"
                   viewBox="0 0 100 100"
                   preserveAspectRatio="none"
                   role="img"
@@ -526,6 +671,7 @@ onMounted(async () => {
                     </linearGradient>
                   </defs>
                   <line v-for="y in [16, 52, 88]" :key="y" x1="0" x2="100" :y1="y" :y2="y" class="grid-line" />
+                  <line v-if="hoveredChartPoint" :x1="hoveredChartX" :x2="hoveredChartX" y1="10" y2="99" class="chart-crosshair" />
                   <template v-if="isCandlePeriod">
                     <g v-for="(candle, index) in candleShapes" :key="`candle-${index}`" :class="candle.up ? 'candle-up' : 'candle-down'">
                       <line :x1="candle.x" :x2="candle.x" :y1="candle.highY" :y2="candle.lowY" class="candle-wick" />
@@ -545,13 +691,36 @@ onMounted(async () => {
                     :height="bar.height"
                     class="volume-bar"
                   />
+                  <circle v-if="hoveredChartPoint" :cx="hoveredChartX" :cy="hoveredChartY" r="1.6" class="chart-hover-point" />
                 </svg>
+                <div
+                  v-if="hoveredChartPoint"
+                  id="chart-point-tooltip"
+                  class="chart-tooltip"
+                  :class="{ 'align-right': hoveredChartX > 58 }"
+                  :style="{ left: `calc(var(--axis-width) + (100% - var(--axis-width)) * ${hoveredChartX / 100})` }"
+                  role="tooltip"
+                >
+                  <time :datetime="hoveredChartPoint.datetime">{{ formatTooltipDate(hoveredChartPoint.datetime) }}</time>
+                  <dl>
+                    <div><dt>시가</dt><dd>{{ formatPrice(hoveredChartPoint.open) }}</dd></div>
+                    <div><dt>고가</dt><dd>{{ formatPrice(hoveredChartPoint.high) }}</dd></div>
+                    <div><dt>저가</dt><dd>{{ formatPrice(hoveredChartPoint.low) }}</dd></div>
+                    <div><dt>종가</dt><dd>{{ formatPrice(hoveredChartPoint.close) }}</dd></div>
+                    <div><dt>거래량</dt><dd>{{ formatVolume(hoveredChartPoint.volume) }}</dd></div>
+                  </dl>
+                </div>
               </div>
               <div class="chart-x-axis">
-                <time :datetime="chartSeries[0]?.datetime">{{ formatChartDate(chartSeries[0]?.datetime) }}</time>
-                <span>OHLCV · {{ chartSeries.length }}개 데이터</span>
-                <time :datetime="chartSeries.at(-1)?.datetime">{{ formatChartDate(chartSeries.at(-1)?.datetime) }}</time>
+                <time
+                  v-for="label in chartAxisLabels"
+                  :key="label.index"
+                  :class="`align-${label.align}`"
+                  :style="{ left: `${label.position}%` }"
+                  :datetime="chartPlotSeries[label.index]?.datetime"
+                >{{ label.label }}</time>
               </div>
+              <p class="chart-data-count">OHLCV · {{ chartSeries.length }}개 데이터</p>
             </div>
           </section>
 
@@ -642,8 +811,11 @@ onMounted(async () => {
 .selector-heading { padding: 0 6px; }.selector-heading h2, .section-heading h3 { margin: 0; letter-spacing: -.03em; }.selector-heading h2 { font-size: 1.25rem; }
 .selector-heading > span, .section-heading > span { color: var(--muted); font-size: .7rem; }
 .stock-search { display: grid; gap: 7px; margin: 18px 6px 14px; color: #536f82; font-size: .72rem; font-weight: 700; }
-.stock-search input { width: 100%; padding: 11px 12px; border: 1px solid #cadbe5; border-radius: 9px; color: var(--ink); background: #fbfdff; font: inherit; font-size: .82rem; }
-.stock-search input:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid #84c9f3; outline-offset: 2px; }
+.stock-search :deep(.p-autocomplete) { width: 100%; }
+.stock-search :deep(.p-autocomplete-input) { width: 100%; padding: 11px 12px; border-color: #cadbe5; border-radius: 9px; color: var(--ink); background: #fbfdff; font-size: .82rem; box-shadow: none; }
+.stock-search :deep(.p-autocomplete-input:focus) { border-color: var(--blue-500); box-shadow: 0 0 0 3px rgba(49,139,208,.12); }
+.search-option-rank { display: grid; width: 24px; height: 24px; flex: 0 0 auto; border-radius: 7px; place-items: center; color: var(--blue-700); background: var(--blue-100); font-size: .65rem; font-weight: 800; }
+.stock-search button:focus-visible, a:focus-visible { outline: 3px solid #84c9f3; outline-offset: 2px; }
 .stock-list { max-height: 610px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
 .stock-list li + li { margin-top: 3px; }
 .stock-list button { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; width: 100%; gap: 9px; padding: 11px 10px; border: 0; border-radius: 10px; color: inherit; background: transparent; text-align: left; cursor: pointer; }
@@ -652,9 +824,13 @@ onMounted(async () => {
 .stock-identity, .stock-quote { display: grid; gap: 2px; }.stock-identity strong { font-size: .81rem; }.stock-identity small, .stock-quote small { color: var(--muted); font-size: .65rem; }
 .stock-quote { text-align: right; }.stock-quote strong { font-size: .75rem; }.stock-quote small { color: #16815d; }.stock-quote small.down { color: #c05757; }.stock-quote.unavailable { max-width: 55px; color: var(--muted); line-height: 1.2; }.stock-quote.unavailable small { color: inherit; }
 .list-state { display: grid; min-height: 240px; padding: 20px; place-items: center; color: var(--muted); text-align: center; }.list-state.error { color: #a44b4b; }
+.list-skeletons { display: grid; gap: 7px; padding: 3px 4px; }
 .list-state button, .detail-state button, .chart-state button { padding: 9px 13px; border: 0; border-radius: 8px; color: #fff; background: var(--blue-700); cursor: pointer; }
 .stock-detail { min-height: 720px; padding: 30px; }
 .detail-state { display: grid; min-height: 600px; place-items: center; align-content: center; gap: 10px; color: var(--muted); text-align: center; }.detail-state p { margin: 0; }.detail-state.error strong { color: #8f4141; }
+.detail-skeleton { display: grid; min-height: 600px; align-content: start; gap: 28px; }
+.detail-skeleton-heading { display: flex; align-items: center; gap: 14px; padding-bottom: 24px; border-bottom: 1px solid var(--line); }
+.detail-skeleton-heading > div { display: grid; gap: 8px; }
 .loader { width: 28px; height: 28px; border: 3px solid #d8e9f4; border-top-color: var(--blue-500); border-radius: 50%; animation: spin .7s linear infinite; }
 .company-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-bottom: 24px; border-bottom: 1px solid var(--line); }
 .company-identity { display: flex; align-items: center; gap: 14px; }.company-identity img, .logo-fallback { width: 52px; height: 52px; border: 1px solid var(--line); border-radius: 13px; object-fit: contain; background: #fff; }
@@ -665,8 +841,9 @@ onMounted(async () => {
 .favorite-toggle { padding: 8px 10px; border: 1px solid #bdd2df; border-radius: 8px; color: var(--blue-700); background: #fff; font-size: .72rem; font-weight: 800; cursor: pointer; }
 .favorite-toggle:hover, .favorite-toggle.active { border-color: #e3b642; color: #7b5a00; background: #fff8dc; }
 .detail-tabs { display: flex; gap: 4px; padding: 5px; margin-top: 18px; border-radius: 11px; background: #e8f0f5; }
-.detail-tabs button { flex: 1; min-height: 40px; padding: 8px 12px; border: 0; border-radius: 8px; color: var(--muted); background: transparent; font: inherit; font-size: .76rem; font-weight: 800; }
-.detail-tabs button:hover { color: var(--blue-700); }.detail-tabs button.active { color: var(--blue-700); background: #fff; box-shadow: 0 2px 7px rgba(35,81,112,.1); }
+.detail-tabs :deep(.p-togglebutton) { flex: 1; min-height: 40px; padding: 8px 12px; border: 0; border-radius: 8px; color: var(--muted); background: transparent; box-shadow: none; font-size: .76rem; font-weight: 800; }
+.detail-tabs :deep(.p-togglebutton:hover) { color: var(--blue-700); background: rgba(255,255,255,.55); }
+.detail-tabs :deep(.p-togglebutton-checked) { color: var(--blue-700); background: #fff; box-shadow: 0 2px 7px rgba(35,81,112,.1); }
 .price-summary { display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; padding: 27px 0; border-bottom: 1px solid var(--line); }
 .price-summary > div:first-child { display: grid; grid-template-columns: auto auto; align-items: baseline; column-gap: 12px; }.price-summary p { grid-column: 1 / -1; margin: 0 0 5px; color: var(--muted); font-size: .72rem; }.price-summary strong { font-size: clamp(2.1rem, 5vw, 3.1rem); letter-spacing: -.06em; }.price-summary span { color: #16815d; font-size: .82rem; font-weight: 800; }.price-summary span.down { color: #c05757; }
 .update-meta { display: grid; justify-items: end; gap: 4px; color: var(--muted); font-size: .67rem; }.update-meta .live-label { padding: 4px 7px; border-radius: 999px; color: #176c51; background: #e4f7ef; font-size: .62rem; }.update-meta small { max-width: 220px; text-align: right; }
@@ -676,17 +853,46 @@ onMounted(async () => {
 dt { color: var(--muted); font-size: .69rem; }dd { margin: 0; font-size: .88rem; font-weight: 800; }
 .availability-note { margin: 10px 0 0; color: #738a99; font-size: .69rem; }
 .chart-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; }.chart-heading h3 { margin: 0; font-size: 1.15rem; letter-spacing: -.03em; }.chart-heading > span { color: var(--muted); font-size: .7rem; }
-.period-tabs { display: flex; gap: 4px; margin: 15px 0 12px; overflow-x: auto; scrollbar-width: thin; }.period-tabs button { min-width: 48px; flex: 1 0 auto; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; color: #607b8d; background: #fff; font-size: .7rem; font-weight: 700; cursor: pointer; }.period-tabs button:hover { border-color: #9bc6df; color: var(--blue-700); background: #f3f9fd; }.period-tabs button.active { border-color: var(--blue-500); color: #fff; background: var(--blue-700); }
+.period-control { margin: 15px 0 12px; }
+.period-tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: thin; }
+.period-tabs :deep(.p-togglebutton) { min-width: 48px; flex: 1 0 auto; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; color: #607b8d; background: #fff; box-shadow: none; font-size: .7rem; font-weight: 700; }
+.period-tabs :deep(.p-togglebutton-content) { padding: 0; color: inherit; background: transparent !important; box-shadow: none; }
+.period-tabs :deep(.p-togglebutton:hover) { border-color: #9bc6df; color: var(--blue-700); background: #f3f9fd; }
+.period-tabs :deep(.p-togglebutton-checked),
+.period-tabs :deep(.p-togglebutton[aria-pressed="true"]) { border-color: var(--blue-700); color: #fff; background: var(--blue-700); box-shadow: 0 3px 9px rgba(23,100,154,.2); }
+.period-tabs :deep(.p-togglebutton[aria-pressed="true"] .p-togglebutton-content) { color: #fff; }
+.period-check { margin-right: 4px; font-weight: 900; }
+.selected-period-status { margin: 8px 2px 0; color: var(--muted); font-size: .66rem; }
+.selected-period-status strong { margin-left: 4px; color: var(--blue-700); }
 .chart-state { display: grid; min-height: 290px; padding: 24px; place-items: center; align-content: center; gap: 10px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); background: #fbfdff; text-align: center; }.chart-state p { margin: 0; }.chart-state.error strong { color: #8f4141; }
-.price-chart { padding: 18px 18px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fbfdff; }.chart-summary { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 10px; }.chart-summary > div { display: grid; gap: 3px; }.chart-summary small { color: var(--muted); font-size: .67rem; }.chart-summary strong { font-size: 1.25rem; }.chart-summary > span { color: #16815d; font-size: .74rem; font-weight: 800; }.chart-summary > span.down { color: #c05757; }
-.chart-canvas { position: relative; height: 250px; padding-left: 52px; overflow: hidden; }.chart-canvas svg { display: block; width: 100%; height: 100%; overflow: visible; color: var(--blue-500); }.chart-y-axis { position: absolute; inset: 0 auto 0 0; display: flex; width: 48px; flex-direction: column; justify-content: space-between; padding: 32px 0 25px; color: #8a9eab; font-size: .62rem; }.grid-line { stroke: #dce8ef; stroke-width: .5; vector-effect: non-scaling-stroke; }.volume-bar { fill: #9bcce8; opacity: .58; }
+.price-chart { --axis-width: 52px; padding: 18px 18px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fbfdff; }.chart-summary { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 10px; }.chart-summary > div { display: grid; gap: 3px; }.chart-summary small { color: var(--muted); font-size: .67rem; }.chart-summary strong { font-size: 1.25rem; }.chart-summary > span { color: #16815d; font-size: .74rem; font-weight: 800; }.chart-summary > span.down { color: #c05757; }
+.chart-interaction-hint { margin: 4px 0 2px; color: #718897; font-size: .64rem; text-align: right; }
+.chart-canvas { position: relative; height: 270px; padding-left: var(--axis-width); overflow: hidden; border-radius: 9px; outline: none; touch-action: pan-y; }
+.chart-canvas:focus-visible { outline: 3px solid rgba(49,139,208,.42); outline-offset: 3px; }
+.chart-canvas svg { display: block; width: 100%; height: 100%; overflow: visible; color: var(--blue-500); }
+.chart-y-axis { position: absolute; inset: 0 auto 0 0; display: flex; width: calc(var(--axis-width) - 4px); flex-direction: column; justify-content: space-between; padding: 32px 0 25px; color: #637e91; font-size: .62rem; font-weight: 700; }
+.grid-line { stroke: #cfdee7; stroke-width: .65; vector-effect: non-scaling-stroke; }
+.chart-crosshair { stroke: #526f83; stroke-width: 1; stroke-dasharray: 3 3; opacity: .75; vector-effect: non-scaling-stroke; }
+.chart-hover-point { fill: #fff; stroke: var(--blue-700); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.chart-tooltip { position: absolute; top: 12px; z-index: 3; width: min(210px, calc(100% - var(--axis-width) - 8px)); padding: 11px 12px; border: 1px solid #bfd4e1; border-radius: 10px; color: var(--ink); background: rgba(255,255,255,.97); box-shadow: 0 10px 24px rgba(35,81,112,.16); pointer-events: none; transform: translateX(8px); }
+.chart-tooltip.align-right { transform: translateX(calc(-100% - 8px)); }
+.chart-tooltip time { display: block; padding-bottom: 7px; border-bottom: 1px solid #e2ebf0; color: var(--blue-700); font-size: .67rem; font-weight: 850; }
+.chart-tooltip dl { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 12px; margin: 8px 0 0; }
+.chart-tooltip dl div { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+.chart-tooltip dl div:last-child { grid-column: 1 / -1; }
+.chart-tooltip dt { color: var(--muted); font-size: .6rem; }
+.chart-tooltip dd { font-size: .67rem; }
+.volume-bar { fill: #8fc5e3; opacity: .7; }
 .candle-up { color: #16815d; }.candle-down { color: #c05757; }.candle-wick { stroke: currentColor; stroke-width: 1; vector-effect: non-scaling-stroke; }.candle-body { fill: currentColor; }
-.chart-x-axis { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-left: 52px; color: #8296a4; font-size: .62rem; }.chart-x-axis span { text-align: center; }
+.chart-x-axis { position: relative; height: 28px; margin-left: var(--axis-width); border-top: 1px solid #d9e5ec; color: #627d90; font-size: .61rem; font-weight: 700; }
+.chart-x-axis time { position: absolute; top: 7px; white-space: nowrap; }
+.chart-x-axis .align-start { transform: none; }.chart-x-axis .align-center { transform: translateX(-50%); }.chart-x-axis .align-end { transform: translateX(-100%); }
+.chart-data-count { margin: 2px 0 0; color: #8196a4; font-size: .61rem; text-align: right; }
 .range-chart { padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: #fbfdff; }.range-track { position: relative; height: 7px; margin: 8px 7px 16px; border-radius: 99px; background: linear-gradient(90deg, #b8d7eb, var(--blue-500)); }.range-track span { position: absolute; top: 50%; width: 16px; height: 16px; border: 3px solid #fff; border-radius: 50%; background: var(--blue-700); box-shadow: 0 1px 5px rgba(21,74,110,.28); transform: translate(-50%, -50%); }.range-labels { display: flex; justify-content: space-between; color: var(--muted); font-size: .68rem; }.range-labels span { display: grid; gap: 3px; }.range-labels span:nth-child(2) { text-align: center; }.range-labels span:last-child { text-align: right; }.range-labels strong { color: var(--ink); font-size: .76rem; }
 .news-list { border-top: 1px solid var(--line); }.news-item { padding: 17px 0; border-bottom: 1px solid var(--line); }.news-item > div { display: flex; gap: 8px; color: var(--muted); font-size: .66rem; }.news-item h4 { margin: 6px 0; font-size: .9rem; line-height: 1.4; }.news-item h4 a { color: var(--ink); text-decoration: none; }.news-item h4 a:hover { color: var(--blue-700); text-decoration: underline; }.news-item p { display: -webkit-box; margin: 0; overflow: hidden; color: var(--muted); font-size: .72rem; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }.news-empty { padding: 30px; color: var(--muted); text-align: center; }
 .data-notice { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-top: 20px; padding: 18px 22px; border: 1px solid var(--line); border-radius: 14px; background: #edf6fb; }.data-notice strong { font-size: .8rem; }.data-notice p { margin: 4px 0 0; color: var(--muted); font-size: .7rem; }.data-notice button { flex: 0 0 auto; padding: 9px 12px; border: 1px solid #aecbdb; border-radius: 8px; color: var(--blue-700); background: #fff; font-weight: 700; cursor: pointer; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 900px) { .stock-browser { grid-template-columns: minmax(0, 1fr); }.stock-selector { position: static; }.stock-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: min(520px, 55vh); gap: 3px; }.stock-list li + li { margin: 0; }.stock-detail { min-height: 600px; }.metrics-grid { grid-template-columns: repeat(2, 1fr); }.metrics-grid div:nth-child(2n) { border-right: 0; }.metrics-grid div:nth-child(n+3) { border-top: 1px solid var(--line); } }
-@media (max-width: 650px) { .stocks-page { width: min(100% - 24px, 1180px); padding-top: 26px; }.stocks-header { align-items: flex-start; flex-direction: column; gap: 18px; }.market-session { min-width: 0; }.favorite-feedback { text-align: left; }.stock-list { grid-template-columns: 1fr; max-height: min(440px, 52vh); }.stock-detail { padding: 20px 16px; }.company-heading, .price-summary { align-items: flex-start; flex-direction: column; }.company-actions { align-items: flex-start; flex-direction: column; }.update-meta { justify-items: start; }.update-meta small { text-align: left; }.daily-grid { grid-template-columns: repeat(2, 1fr); }.daily-grid div:nth-child(2) { border-right: 0; }.daily-grid div:nth-child(n+3) { border-top: 1px solid var(--line); }.metrics-grid { grid-template-columns: repeat(2, 1fr); }.chart-canvas { height: 210px; padding-left: 42px; }.chart-y-axis { width: 39px; font-size: .57rem; }.chart-x-axis { padding-left: 42px; }.range-labels { gap: 8px; }.data-notice { align-items: flex-start; flex-direction: column; } }
+@media (max-width: 650px) { .stocks-page { width: min(100% - 24px, 1180px); padding-top: 26px; }.stocks-header { align-items: flex-start; flex-direction: column; gap: 18px; }.market-session { min-width: 0; }.favorite-feedback { text-align: left; }.stock-list { grid-template-columns: 1fr; max-height: min(440px, 52vh); }.stock-detail { padding: 20px 16px; }.company-heading, .price-summary { align-items: flex-start; flex-direction: column; }.company-actions { align-items: flex-start; flex-direction: column; }.update-meta { justify-items: start; }.update-meta small { text-align: left; }.daily-grid { grid-template-columns: repeat(2, 1fr); }.daily-grid div:nth-child(2) { border-right: 0; }.daily-grid div:nth-child(n+3) { border-top: 1px solid var(--line); }.metrics-grid { grid-template-columns: repeat(2, 1fr); }.price-chart { --axis-width: 42px; padding-inline: 10px; }.chart-canvas { height: 230px; }.chart-y-axis { font-size: .55rem; }.chart-interaction-hint { text-align: left; }.chart-x-axis time:nth-child(even) { display: none; }.range-labels { gap: 8px; }.data-notice { align-items: flex-start; flex-direction: column; } }
 @media (prefers-reduced-motion: reduce) { .loader { animation: none; } * { scroll-behavior: auto !important; transition: none !important; } }
 </style>

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
+import Skeleton from 'primevue/skeleton'
 import { STOCK_MARKETS } from '../services/stockApi'
 import { fetchTopHeadlines } from '../services/newsApi'
 import { useConfigStore } from '../stores/configStore'
@@ -124,8 +125,9 @@ onMounted(loadNews)
         <span class="sun" aria-hidden="true">{{ weatherIcon[heroWeather.status] ?? '🌤️' }}</span>
         <div><strong>{{ configStore.formatTemperature(heroWeather.temp) }}</strong><span>{{ heroWeather.name }} · {{ heroWeather.description }}</span></div>
       </div>
-      <div v-else class="hero-weather hero-weather-state" role="status">
-        {{ isWeatherLoading ? '서울 날씨를 불러오는 중…' : '날씨 정보 없음' }}
+      <div v-else class="hero-weather hero-weather-state" role="status" :aria-label="isWeatherLoading ? '서울 날씨를 불러오는 중입니다' : '날씨 정보 없음'">
+        <template v-if="isWeatherLoading"><Skeleton shape="circle" size="56px" /><div><Skeleton width="5rem" height="1.7rem" /><Skeleton width="8rem" /></div></template>
+        <template v-else>날씨 정보 없음</template>
       </div>
     </header>
 
@@ -142,7 +144,9 @@ onMounted(loadNews)
           <div><p class="eyebrow">TODAY'S NEWS</p><h2 id="news-title">오늘의 주요 뉴스</h2></div>
           <span :class="['source-label', newsSource]">{{ newsSource === 'api' ? 'LIVE' : newsSource === 'demo' ? 'DEMO' : 'LOADING' }}</span>
         </div>
-        <p v-if="isNewsLoading" class="news-state" role="status">오늘의 뉴스를 불러오는 중입니다…</p>
+        <div v-if="isNewsLoading" class="news-skeleton" role="status" aria-label="오늘의 뉴스를 불러오는 중입니다">
+          <div v-for="index in 3" :key="index"><Skeleton width="28px" height="28px" /><span><Skeleton width="34%" height="10px" /><Skeleton width="92%" height="20px" /><Skeleton width="76%" height="12px" /></span></div>
+        </div>
         <div v-else class="news-list">
           <article v-for="(item, index) in news" :key="item.title" class="news-item">
             <span class="news-number">0{{ index + 1 }}</span>
@@ -162,7 +166,9 @@ onMounted(loadNews)
             <div><p class="eyebrow">LIVE WEATHER</p><h2 id="weather-summary-title">지역별 날씨</h2></div>
             <RouterLink to="/weather">전체 보기 <span aria-hidden="true">→</span></RouterLink>
           </div>
-          <p v-if="isWeatherLoading" class="weather-state" role="status">실시간 날씨를 불러오는 중입니다…</p>
+          <div v-if="isWeatherLoading" class="weather-skeleton" role="status" aria-label="실시간 날씨를 불러오는 중입니다">
+            <div v-for="index in 3" :key="index"><Skeleton shape="circle" size="36px" /><Skeleton width="44%" height="28px" /><Skeleton width="22%" height="28px" /></div>
+          </div>
           <div v-else-if="weather.length" class="weather-list">
             <RouterLink v-for="item in weather" :key="item.id" :to="`/weather/${item.id}`" class="weather-row">
               <span class="weather-icon" aria-hidden="true">{{ weatherIcon[item.status] ?? '🌤️' }}</span>
@@ -235,6 +241,9 @@ onMounted(loadNews)
 .source-label.api { color: #167454; background: #e5f7ef; }
 .source-label.loading { color: #7e8f9a; background: #edf2f5; }
 .news-state { display: grid; min-height: 300px; margin: 0; place-items: center; color: #7890a1; font-size: .78rem; }
+.news-skeleton { display: grid; gap: 4px; padding-top: 3px; }
+.news-skeleton > div { display: grid; grid-template-columns: 38px 1fr; gap: 14px; padding: 22px 0; border-top: 1px solid #e5edf2; }
+.news-skeleton > div > span { display: grid; gap: 9px; }
 .news-list { display: grid; }
 .news-item { display: grid; grid-template-columns: 38px 1fr; gap: 14px; padding: 22px 0; border-top: 1px solid #e5edf2; }
 .news-number { padding-top: 4px; color: #9ab0be; font-size: .76rem; font-weight: 800; }
@@ -252,6 +261,8 @@ onMounted(loadNews)
 .compact-heading a:hover { text-decoration: underline; }
 .weather-list { display: grid; }
 .weather-state { min-height: 154px; display: grid; margin: 0; place-items: center; color: #7890a1; font-size: .78rem; }
+.weather-skeleton { display: grid; }
+.weather-skeleton > div { display: grid; grid-template-columns: 42px 1fr auto; align-items: center; gap: 10px; padding: 13px 4px; border-top: 1px solid #e6eef3; }
 .weather-error { display: grid; min-height: 154px; place-items: center; align-content: center; gap: 10px; text-align: center; }
 .weather-error p { margin: 0; color: #a05252; font-size: .74rem; line-height: 1.5; }
 .weather-error button { padding: 7px 11px; border: 0; border-radius: 8px; color: #fff; background: var(--blue-700); font-size: .7rem; }

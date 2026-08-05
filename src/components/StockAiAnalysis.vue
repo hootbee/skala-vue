@@ -1,4 +1,6 @@
 <script setup>
+import Skeleton from 'primevue/skeleton'
+
 defineProps({
   result: { type: Object, default: null },
   companyName: { type: String, required: true },
@@ -20,7 +22,7 @@ const formatDateTime = (value) => value
     </header>
 
     <div v-if="isLoading" class="analysis-state" role="status" aria-live="polite">
-      <span class="loader" aria-hidden="true"></span>
+      <div class="analysis-skeleton"><Skeleton shape="circle" size="54px" /><Skeleton width="15rem" height="1.2rem" /><Skeleton width="min(100%, 28rem)" height="5rem" border-radius="12px" /></div>
       <strong>{{ companyName }} 데이터를 분석하고 있습니다.</strong>
       <p>가격 흐름과 최근 분기·연간 재무 변화를 함께 비교합니다.</p>
     </div>
@@ -75,7 +77,7 @@ const formatDateTime = (value) => value
 .analysis-state button:hover, .analysis-empty button:hover, .analysis-footer button:hover { background: #12527e; }
 .analysis-mark { display: grid; width: 54px; height: 54px; place-items: center; border: 1px solid #d8d0f3; border-radius: 15px; color: #604eac; background: linear-gradient(135deg, #f3f0ff, #e8f5fd); font-size: .9rem; font-weight: 900; }
 .analysis-empty > div:nth-child(2) { display: grid; gap: 6px; }.analysis-empty small { color: #8193a0; font-size: .64rem; }
-.loader { width: 30px; height: 30px; border: 3px solid #e0dcf5; border-top-color: #6957b7; border-radius: 50%; animation: spin .7s linear infinite; }
+.analysis-skeleton { display: grid; width: min(100%, 30rem); justify-items: center; gap: 10px; }
 .analysis-summary { padding: 20px; border: 1px solid #d9d3ef; border-radius: 14px; background: linear-gradient(135deg, #faf9ff, #f2f9fd); }.analysis-summary > p { margin: 16px 0; color: #405c70; font-size: .82rem; line-height: 1.75; }
 .signal-block { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.signal { padding: 6px 12px; border-radius: 999px; color: #4e6270; background: #edf1f4; font-size: .74rem; font-weight: 850; }.signal--긍정 { color: #176d4d; background: #e1f5eb; }.signal--주의 { color: #9a4747; background: #fdecec; }
 .signal-block div { display: flex; align-items: baseline; gap: 7px; }.signal-block small { color: var(--muted); font-size: .65rem; }.signal-block strong { font-size: 1.05rem; }
@@ -86,8 +88,6 @@ const formatDateTime = (value) => value
 .risk-box { margin-top: 16px; padding: 18px 20px; border: 1px solid #ecd4d4; border-radius: 12px; background: #fff8f8; }.risk-box h4 { margin: 0; color: #8d4747; font-size: .82rem; }.risk-box li { margin-top: 7px; color: #6f5555; font-size: .69rem; line-height: 1.55; }
 .analysis-footer { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 16px; }.analysis-footer div { display: grid; gap: 3px; }.analysis-footer strong { font-size: .72rem; }.analysis-footer time { color: var(--muted); font-size: .63rem; }
 .disclaimer { margin: 14px 0 0; padding-top: 13px; border-top: 1px solid var(--line); color: #7c8e9a; font-size: .63rem; line-height: 1.6; }
-@keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 900px) { .strategy-list { grid-template-columns: 1fr; grid-template-rows: none; gap: 12px; }.strategy-card { display: block; grid-row: auto; } }
 @media (max-width: 560px) { .analysis-heading { align-items: flex-start; flex-direction: column; }.analysis-state, .analysis-empty { min-height: 330px; padding: 24px 18px; }.analysis-summary { padding: 17px; }.analysis-footer { align-items: flex-start; flex-direction: column; }.analysis-footer button { width: 100%; } }
-@media (prefers-reduced-motion: reduce) { .loader { animation: none; } }
 </style>

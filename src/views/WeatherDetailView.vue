@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import Skeleton from 'primevue/skeleton'
 import { useConfigStore } from '../stores/configStore'
 import { useRoute } from 'vue-router'
 import { fetchCurrentWeather, getAirQualityLevel, getUvLevel, getWeatherErrorMessage, KOREA_WEATHER_REGIONS, WEATHER_CITIES } from '../services/weatherApi'
@@ -44,7 +45,14 @@ onMounted(loadWeather)
 
 <template>
   <main class="detail-view" aria-labelledby="detail-title">
-    <template v-if="isLoading"><h1 id="detail-title">날씨를 불러오는 중입니다.</h1><p role="status">잠시만 기다려 주세요.</p></template>
+    <template v-if="isLoading">
+      <h1 id="detail-title" class="visually-hidden">날씨를 불러오는 중입니다.</h1>
+      <div class="detail-loading" role="status" aria-label="날씨 상세 정보를 불러오는 중입니다">
+        <Skeleton width="10rem" height="16px" />
+        <Skeleton width="62%" height="54px" />
+        <Skeleton width="100%" height="410px" border-radius="16px" />
+      </div>
+    </template>
     <template v-else-if="loadError"><h1 id="detail-title">날씨 정보를 불러오지 못했습니다.</h1><p class="error-message" role="alert">{{ loadError }}</p><button class="retry-button" type="button" @click="loadWeather">다시 시도</button></template>
     <template v-else-if="city">
       <p class="eyebrow">CITY DETAIL</p>
@@ -99,6 +107,8 @@ onMounted(loadWeather)
 
 <style scoped>
 .detail-view { width: min(920px, calc(100% - 40px)); margin: 0 auto; padding: 58px 0 72px; color: var(--ink); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.detail-loading { display: grid; gap: 18px; }
 .eyebrow { color: var(--blue-500); font-size: .75rem; font-weight: 800; letter-spacing: .16em; }
 h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.5rem); letter-spacing: -.05em; }
 .title-row { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
