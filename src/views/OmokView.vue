@@ -1,16 +1,17 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 const BOARD_SIZE = 15
 const EMPTY = 0
-const PLAYER = 1
-const COMPUTER = 2
+const COMPUTER = 1
+const PLAYER = 2
 const DIRECTIONS = [[1, 0], [0, 1], [1, 1], [1, -1]]
+const AI_TIME_LIMIT_MS = 30_000
 
 const createBoard = () => Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(EMPTY))
 
 const board = ref(createBoard())
-const turn = ref(PLAYER)
+const turn = ref(COMPUTER)
 const winner = ref(null)
 const isThinking = ref(false)
 const lastMove = ref(null)
@@ -36,7 +37,7 @@ const statusText = computed(() => {
   if (winner.value === PLAYER) return '승리했습니다. 다시 두려면 새 게임을 시작하세요.'
   if (winner.value === COMPUTER) return '컴퓨터가 승리했습니다. 다시 도전해 보세요.'
   if (winner.value === 'draw') return '모든 칸이 채워졌습니다. 무승부입니다.'
-  if (isThinking.value) return '컴퓨터가 다음 수를 찾고 있습니다.'
+  if (isThinking.value || turn.value === COMPUTER) return '컴퓨터가 다음 수를 찾고 있습니다.'
   return '당신의 차례입니다. 흑돌을 놓아 보세요.'
 })
 
@@ -193,7 +194,7 @@ const chooseComputerMove = (state) => {
   if (blockingMove) return blockingMove
 
   const ranked = rankedCandidates(state, COMPUTER, 16)
-  const deadline = clock() + 650
+  const deadline = clock() + AI_TIME_LIMIT_MS
   let bestMove = candidates[0]
   let bestScore = -Infinity
   ranked.forEach(({ row, col, score: attack }) => {
@@ -225,14 +226,8 @@ const finishMove = (stone, row, col) => {
   }
 }
 
-const placeStone = (row, col) => {
-  if (winner.value || isThinking.value || turn.value !== PLAYER || board.value[row][col] !== EMPTY) return
-  const nextBoard = board.value.map((line) => [...line])
-  nextBoard[row][col] = PLAYER
-  board.value = nextBoard
-  finishMove(PLAYER, row, col)
+const runComputerTurn = () => {
   if (winner.value || turn.value !== COMPUTER) return
-
   isThinking.value = true
   window.setTimeout(() => {
     const [computerRow, computerCol] = chooseComputerMove(board.value)
@@ -244,20 +239,33 @@ const placeStone = (row, col) => {
   }, 260)
 }
 
+const placeStone = (row, col) => {
+  if (winner.value || isThinking.value || turn.value !== PLAYER || board.value[row][col] !== EMPTY) return
+  const nextBoard = board.value.map((line) => [...line])
+  nextBoard[row][col] = PLAYER
+  board.value = nextBoard
+  finishMove(PLAYER, row, col)
+  if (winner.value || turn.value !== COMPUTER) return
+  runComputerTurn()
+}
+
 const resetGame = () => {
   board.value = createBoard()
-  turn.value = PLAYER
+  turn.value = COMPUTER
   winner.value = null
   isThinking.value = false
   lastMove.value = null
   recordSaved.value = false
+  runComputerTurn()
 }
 
 const cellLabel = (row, col, stone) => {
   const column = String.fromCharCode(65 + col)
-  const value = stone === PLAYER ? '내 흑돌' : stone === COMPUTER ? '컴퓨터 백돌' : '빈 칸'
+  const value = stone === PLAYER ? '내 백돌' : stone === COMPUTER ? '컴퓨터 흑돌' : '빈 칸'
   return `${column}${row + 1}, ${value}`
 }
+
+onMounted(runComputerTurn)
 </script>
 
 <template>
@@ -273,7 +281,7 @@ const cellLabel = (row, col, stone) => {
 
     <section class="omok-layout" aria-label="오목 게임">
       <div class="board-panel">
-        <div class="board-meta"><span>15 × 15 자유룰</span><span>흑돌 선공</span></div>
+        <div class="board-meta"><span>15 × 15 자유룰</span><span>컴퓨터 흑돌 선공</span></div>
         <div class="board" role="grid" aria-label="오목판">
           <button
             v-for="(cell, index) in board.flat()"
@@ -300,7 +308,7 @@ const cellLabel = (row, col, stone) => {
             <li>빈 칸을 선택하면 흑돌이 놓입니다.</li>
             <li>가로, 세로, 대각선으로 다섯 돌을 먼저 잇는 쪽이 승리합니다.</li>
           </ul>
-          <span class="difficulty-badge">난이도 · 강함</span>
+          <span class="difficulty-badge">난이도 · 강함 · 생각 제한 30초</span>
         </div>
         <div class="history-panel">
           <div class="history-heading"><h2>최근 전적</h2><span>최근 10게임</span></div>
@@ -310,7 +318,7 @@ const cellLabel = (row, col, stone) => {
             <li v-for="(game, index) in gameHistory" :key="`${game.playedAt}-${index}`"><strong :class="`result-${game.result}`">{{ resultLabel(game.result) }}</strong><time :datetime="game.playedAt">{{ formatHistoryDate(game.playedAt) }}</time></li>
           </ul>
         </div>
-        <div class="legend" aria-label="돌 색상 안내"><span><i class="legend-stone black"></i> 내 흑돌</span><span><i class="legend-stone white"></i> 컴퓨터 백돌</span></div>
+          <div class="legend" aria-label="돌 색상 안내"><span><i class="legend-stone black"></i> 컴퓨터 흑돌</span><span><i class="legend-stone white"></i> 내 백돌</span></div>
       </aside>
     </section>
   </main>
