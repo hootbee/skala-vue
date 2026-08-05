@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { chooseOmokMove } from '../utils/omokAi.js'
 
 const BOARD_SIZE = 15
 const EMPTY = 0
@@ -173,89 +174,10 @@ const rankedCandidates = (state, stone, limit = 10) => availableCells(state)
   .sort((left, right) => right.score - left.score)
   .slice(0, limit)
 
-const winningMoves = (state, stone) => availableCells(state).filter(([row, col]) => {
-  state[row][col] = stone
-  const wins = hasFive(state, row, col, stone)
-  state[row][col] = EMPTY
-  return wins
-})
-
-const evaluatePosition = (state) => {
-  const candidates = availableCells(state)
-  if (!candidates.length) return 0
-  const attackScores = candidates.map(([row, col]) => scoreMove(state, row, col, COMPUTER)).sort((a, b) => b - a)
-  const defenseScores = candidates.map(([row, col]) => scoreMove(state, row, col, PLAYER)).sort((a, b) => b - a)
-  const attack = attackScores[0] + (attackScores[1] || 0) * 0.35 + (attackScores[2] || 0) * 0.12
-  const defense = defenseScores[0] + (defenseScores[1] || 0) * 0.35 + (defenseScores[2] || 0) * 0.12
-  return attack * 1.1 - defense
-}
-
-const clock = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
-const minimax = (state, depth, maximizing, alpha, beta, deadline) => {
-  if (clock() >= deadline) return evaluatePosition(state)
-  if (depth === 0) return evaluatePosition(state)
-  const stone = maximizing ? COMPUTER : PLAYER
-  const moves = rankedCandidates(state, stone)
-  if (!moves.length) return 0
-
-  if (maximizing) {
-    let best = -Infinity
-    for (const move of moves) {
-      const nextState = state.map((line) => [...line])
-      nextState[move.row][move.col] = stone
-      if (hasFive(nextState, move.row, move.col, stone)) return 1000000
-      best = Math.max(best, minimax(nextState, depth - 1, false, alpha, beta, deadline))
-      alpha = Math.max(alpha, best)
-      if (beta <= alpha) break
-    }
-    return best
-  }
-
-  let best = Infinity
-  for (const move of moves) {
-    const nextState = state.map((line) => [...line])
-    nextState[move.row][move.col] = stone
-    if (hasFive(nextState, move.row, move.col, stone)) return -1000000
-    best = Math.min(best, minimax(nextState, depth - 1, true, alpha, beta, deadline))
-    beta = Math.min(beta, best)
-    if (beta <= alpha) break
-  }
-  return best
-}
-
 const chooseComputerMove = (state) => {
-  const candidates = availableCells(state)
-  const winningMove = winningMoves(state, COMPUTER)[0]
-  if (winningMove) return winningMove
-  const opponentWins = winningMoves(state, PLAYER)
-  if (opponentWins.length === 1) return opponentWins[0]
-  const doubleThreat = candidates.find(([row, col]) => {
-    state[row][col] = COMPUTER
-    const threats = winningMoves(state, COMPUTER).length
-    state[row][col] = EMPTY
-    return threats >= 2
-  })
-  if (doubleThreat) return doubleThreat
-  if (opponentWins.length > 1) return opponentWins[0]
-
-  const ranked = rankedCandidates(state, COMPUTER, 16)
-  const deadline = clock() + AI_TIME_LIMIT_MS
-  let bestMove = candidates[0]
-  let bestScore = -Infinity
-  ranked.forEach(({ row, col, score: attack }) => {
-    if (clock() >= deadline) return
-    const defense = scoreMove(state, row, col, PLAYER)
-    const centerDistance = Math.abs(row - 7) + Math.abs(col - 7)
-    const nextState = state.map((line) => [...line])
-    nextState[row][col] = COMPUTER
-    const replyScore = minimax(nextState, 3, false, -Infinity, Infinity, deadline)
-    const score = replyScore + attack * 0.25 + defense * 0.1 + (30 - centerDistance)
-    if (score > bestScore) {
-      bestScore = score
-      bestMove = [row, col]
-    }
-  })
-  return bestMove
+  const fallback = rankedCandidates(state, COMPUTER, 1)[0]
+  const selected = chooseOmokMove(state, lastMove.value, AI_TIME_LIMIT_MS)
+  return selected ?? (fallback ? [fallback.row, fallback.col] : [7, 7])
 }
 
 const finishMove = (stone, row, col) => {
@@ -382,11 +304,9 @@ onUnmounted(stopPlayerTimer)
 .omok-page { position: relative; isolation: isolate; width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 44px 0 76px; color: var(--ink); }
 .omok-page::before { position: fixed; z-index: -1; inset: 0; pointer-events: none; background: transparent; content: ''; transition: background .8s ease; }
 .timer-warning-page::before { background: rgba(214, 57, 45, .24); }
-.timer-warning-page { animation: screen-shake .09s ease-in-out infinite alternate; }
-.timer-critical-page { animation: screen-shake-hard .045s ease-in-out infinite alternate; }
+.timer-warning-page { animation: none; }
+.timer-critical-page { animation: none; }
 .timer-critical-page::before { background: rgba(207, 25, 25, .48); animation: danger-flash .34s ease-in-out infinite alternate; }
-@keyframes screen-shake { from { transform: translate(-5px, 3px) rotate(-.35deg); } to { transform: translate(5px, -3px) rotate(.35deg); } }
-@keyframes screen-shake-hard { from { transform: translate(-8px, 5px) rotate(-.7deg); } to { transform: translate(8px, -5px) rotate(.7deg); } }
 @keyframes danger-flash { from { opacity: .55; } to { opacity: 1; } }
 .omok-header { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
 .eyebrow { margin: 0 0 8px; color: var(--blue-500); font-size: .7rem; font-weight: 900; letter-spacing: .16em; }
@@ -426,6 +346,6 @@ h1 { margin: 0; font-size: clamp(2rem, 4vw, 3rem); letter-spacing: -.06em; }
 .legend { display: flex; flex-wrap: wrap; gap: 14px; padding: 0 4px; color: var(--muted); font-size: .78rem; font-weight: 700; }
 .legend span { display: inline-flex; align-items: center; gap: 7px; }
 .legend-stone { display: inline-block; width: 15px; height: 15px; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,.2); }.legend-stone.black { background: #17212a; }.legend-stone.white { border: 1px solid #a9b6bf; background: #f4f7f8; }
-@media (prefers-reduced-motion: reduce) { .timer-critical, .timer-warning-page, .timer-critical-page, .timer-critical-page::before { animation: none; }.timer-track span, .omok-page::before { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .timer-critical, .timer-critical-page::before { animation: none; }.timer-track span, .omok-page::before { transition: none; } }
 @media (max-width: 760px) { .omok-page { width: min(100% - 24px, 1120px); padding-top: 28px; }.omok-header { align-items: flex-start; flex-direction: column; gap: 17px; }.omok-layout { grid-template-columns: 1fr; }.board-panel { padding: 12px; }.board { padding: 8px; }.game-info { grid-template-columns: 1fr; } }
 </style>
