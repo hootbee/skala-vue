@@ -43,8 +43,6 @@ const candleShapes = (values) => {
       <div><p>MARKET PULSE</p><h2 id="market-etfs-title">미국 주요 지수 흐름</h2></div>
       <span>지수 추종 ETF 기준 · 5분 캐시</span>
     </header>
-    <p class="market-etfs-note">정확한 지수값 대신 무료로 조회 가능한 대표 ETF 가격을 표시합니다.</p>
-
     <div v-if="isLoading" class="etf-grid" role="status" aria-label="주요 지수를 불러오는 중입니다">
       <span v-for="index in 3" :key="index" class="etf-skeleton"></span>
     </div>
@@ -78,7 +76,6 @@ const candleShapes = (values) => {
 .market-etfs-heading p { margin: 0 0 5px; color: var(--blue-500); font-size: .66rem; font-weight: 800; letter-spacing: .15em; }
 .market-etfs-heading h2 { margin: 0; color: var(--ink); font-size: 1.12rem; letter-spacing: -.03em; }
 .market-etfs-heading > span { color: var(--muted); font-size: .68rem; text-align: right; }
-.market-etfs-note { margin: 7px 0 14px; color: var(--muted); font-size: .7rem; }
 .etf-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
 .etf-card { display: grid; gap: 9px; min-width: 0; padding: 15px; border: 1px solid var(--line); border-radius: 12px; color: var(--ink); background: #fbfdff; text-align: left; cursor: default; }
 .etf-card-top, .etf-price-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }

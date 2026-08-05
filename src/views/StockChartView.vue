@@ -701,7 +701,6 @@ onMounted(async () => {
               <div><dt>저가</dt><dd>{{ formatPrice(detail.low) }}</dd></div>
               <div><dt>전일 종가</dt><dd>{{ formatPrice(detail.previousClose) }}</dd></div>
             </dl>
-            <p class="availability-note">당일 거래량과 거래대금은 현재 Finnhub 무료 API 응답에 포함되지 않습니다.</p>
           </section>
 
           <section class="price-chart-section" aria-labelledby="price-chart-title">
@@ -830,7 +829,6 @@ onMounted(async () => {
           <section class="range-section" aria-labelledby="range-title">
             <div class="section-heading">
               <div><p class="eyebrow">52-WEEK RANGE</p><h3 id="range-title">52주 가격 범위</h3></div>
-              <span>실제 Finnhub 지표</span>
             </div>
             <div class="range-chart" role="img" :aria-label="`52주 최저 ${formatPrice(detail.week52Low)}, 현재 ${formatPrice(detail.currentPrice)}, 최고 ${formatPrice(detail.week52High)}`">
               <div class="range-track"><span :style="{ left: `${rangePosition}%` }"></span></div>
@@ -958,7 +956,6 @@ onMounted(async () => {
 .daily-grid, .metrics-grid { display: grid; margin: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }.daily-grid { grid-template-columns: repeat(4, 1fr); }.metrics-grid { grid-template-columns: repeat(4, 1fr); }
 .daily-grid div, .metrics-grid div { display: grid; gap: 6px; padding: 16px; border-right: 1px solid var(--line); background: #fbfdff; }.daily-grid div:last-child { border-right: 0; }.metrics-grid div:nth-child(4n) { border-right: 0; }.metrics-grid div:nth-child(n+5) { border-top: 1px solid var(--line); }
 dt { color: var(--muted); font-size: .69rem; }dd { margin: 0; font-size: .88rem; font-weight: 800; }
-.availability-note { margin: 10px 0 0; color: #738a99; font-size: .69rem; }
 .chart-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; }.chart-heading h3 { margin: 0; font-size: 1.15rem; letter-spacing: -.03em; }.chart-heading > span { color: var(--muted); font-size: .7rem; }
 .period-control { margin: 15px 0 12px; }
 .period-tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: thin; }

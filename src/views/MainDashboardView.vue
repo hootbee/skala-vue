@@ -72,7 +72,7 @@ const stocks = ref(dashboardMarkets.map((market) => {
 const marketNotice = computed(() =>
   stocks.value.some(({ source }) => source === 'error')
     ? '일부 종목 시세를 불러오지 못했습니다.'
-    : 'Finnhub 미국 주식 현재가이며 투자 참고용입니다.',
+    : '',
 )
 
 onMounted(async () => {
@@ -116,26 +116,48 @@ onMounted(loadNews)
 <template>
   <main class="dashboard-page">
     <header class="dashboard-hero">
-      <div>
+      <div class="hero-content">
         <p class="date-label">{{ today }}</p>
-        <h1>오늘 필요한 정보만<br><span>가볍게 확인하세요.</span></h1>
-        <p class="hero-copy">뉴스와 날씨, 주요 시세를 한 화면에 모았습니다.</p>
+        <h1>오늘의 날씨와 미국 주식을<br><span>한 화면에서 확인하세요.</span></h1>
+        <p class="hero-copy">날씨, 시장, 최신 소식을 매일의 브리핑처럼 빠르게 살펴보세요.</p>
+        <div class="hero-actions">
+          <RouterLink class="hero-primary" to="/weather">지금 날씨 확인하기 <span aria-hidden="true">→</span></RouterLink>
+          <RouterLink class="hero-secondary" to="/stocks">미국 시장 보기</RouterLink>
+        </div>
       </div>
-      <div v-if="heroWeather" class="hero-weather" :aria-label="`${heroWeather.name} 현재 날씨 ${heroWeather.status}, ${configStore.formatTemperature(heroWeather.temp)}`">
-        <span class="sun" aria-hidden="true">{{ weatherIcon[heroWeather.status] ?? '🌤️' }}</span>
-        <div><strong>{{ configStore.formatTemperature(heroWeather.temp) }}</strong><span>{{ heroWeather.name }} · {{ heroWeather.description }}</span></div>
-      </div>
-      <div v-else class="hero-weather hero-weather-state" role="status" :aria-label="isWeatherLoading ? '서울 날씨를 불러오는 중입니다' : '날씨 정보 없음'">
-        <template v-if="isWeatherLoading"><Skeleton shape="circle" size="56px" /><div><Skeleton width="5rem" height="1.7rem" /><Skeleton width="8rem" /></div></template>
-        <template v-else>날씨 정보 없음</template>
+      <div class="hero-preview" aria-label="오늘의 브리핑 미리보기">
+        <div class="preview-heading"><span>DAILY BRIEFING</span><small>오늘 한눈에 보기</small></div>
+        <div v-if="heroWeather" class="hero-weather" :aria-label="`${heroWeather.name} 현재 날씨 ${heroWeather.status}, ${configStore.formatTemperature(heroWeather.temp)}`">
+          <span class="sun" aria-hidden="true">{{ weatherIcon[heroWeather.status] ?? '🌤️' }}</span>
+          <div><small>WEATHER</small><strong>{{ configStore.formatTemperature(heroWeather.temp) }}</strong><span>{{ heroWeather.name }} · {{ heroWeather.description }}</span></div>
+        </div>
+        <div v-else class="hero-weather hero-weather-state" role="status" :aria-label="isWeatherLoading ? '서울 날씨를 불러오는 중입니다' : '날씨 정보 없음'">
+          <template v-if="isWeatherLoading"><Skeleton shape="circle" size="56px" /><div><Skeleton width="5rem" height="1.7rem" /><Skeleton width="8rem" /></div></template>
+          <template v-else>날씨 정보 없음</template>
+        </div>
+        <div class="preview-market"><span><b>MARKET</b><small>{{ stocks[0].symbol }} · {{ stocks[0].name }}</small></span><strong :class="stocks[0].up === false ? 'negative' : 'positive'">{{ stocks[0].change }}</strong></div>
+        <div class="preview-ai"><span class="preview-ai-icon" aria-hidden="true">✦</span><span><b>AI 브리핑</b><small>오늘의 흐름을 짧게 정리해 드려요.</small></span></div>
       </div>
     </header>
+
+    <section class="trust-strip" aria-label="서비스 특징">
+      <div><strong>주요 지역 날씨</strong><span>현재 기온과 공기질</span></div>
+      <div><strong>미국 시총 상위 30</strong><span>가격·차트·재무 정보</span></div>
+      <div><strong>오늘의 뉴스 브리핑</strong><span>핵심 소식 3건</span></div>
+      <div><strong>AI 분석 참고</strong><span>단기·중기·장기 관점</span></div>
+    </section>
 
     <section class="quick-strip" aria-label="오늘의 핵심 정보">
       <div><span class="quick-dot weather-dot" aria-hidden="true"></span><span>{{ heroWeather?.name ?? '서울' }}</span><strong>{{ heroWeather ? `${configStore.formatTemperature(heroWeather.temp)} ${heroWeather.status}` : '—' }}</strong></div>
       <div><span class="quick-dot air-dot" aria-hidden="true"></span><span>공기질</span><strong>{{ heroWeather ? getAirQualityLevel(heroWeather.airQualityIndex) : '—' }}</strong></div>
       <div><span class="quick-dot market-dot" aria-hidden="true"></span><span>{{ stocks[0].symbol }}</span><strong :class="stocks[0].up === false ? 'negative' : 'positive'">{{ stocks[0].change }}</strong></div>
       <div><span class="quick-dot rain-dot" aria-hidden="true"></span><span>최근 강수</span><strong>{{ heroWeather ? `${heroWeather.precipitation.toFixed(1)} mm` : '—' }}</strong></div>
+    </section>
+
+    <section class="benefit-strip" aria-label="주요 기능과 활용 방법">
+      <article><span class="benefit-icon" aria-hidden="true">☀</span><div><strong>전국 날씨를 한 화면에서 비교</strong><p>지역을 검색하고 상세 기온과 공기질을 바로 확인합니다.</p></div></article>
+      <article><span class="benefit-icon" aria-hidden="true">↗</span><div><strong>장 시작 전 시장 흐름을 빠르게 파악</strong><p>미국 주요 종목의 현재가와 변동률을 한눈에 봅니다.</p></div></article>
+      <article><span class="benefit-icon" aria-hidden="true">✦</span><div><strong>숫자를 AI 관점으로 다시 읽기</strong><p>재무와 차트 지표를 바탕으로 참고용 전략을 확인합니다.</p></div></article>
     </section>
 
     <div class="dashboard-grid">
@@ -210,17 +232,27 @@ onMounted(loadNews)
 
 <style scoped>
 .dashboard-page { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 34px 0 64px; }
-.dashboard-hero { display: flex; align-items: center; justify-content: space-between; min-height: 270px; padding: 42px 48px; overflow: hidden; border-radius: 22px; color: #fff; background: linear-gradient(125deg, #124f79 0%, #176fa7 62%, #3997cf 100%); box-shadow: 0 18px 42px rgba(30, 96, 141, .18); }
+.dashboard-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, .72fr); align-items: center; gap: 42px; min-height: 320px; padding: 42px 48px; overflow: hidden; border-radius: 22px; color: #fff; background: linear-gradient(125deg, #124f79 0%, #176fa7 62%, #3997cf 100%); box-shadow: 0 18px 42px rgba(30, 96, 141, .18); }
+.hero-content { min-width: 0; }
 .date-label { margin: 0 0 12px; color: #bce3f9; font-size: .82rem; font-weight: 700; }
 .dashboard-hero h1 { margin: 0; font-size: clamp(2.25rem, 5vw, 3.9rem); line-height: 1.12; letter-spacing: -.06em; }
 .dashboard-hero h1 span { color: #c9ebff; }
 .hero-copy { margin: 18px 0 0; color: rgba(255,255,255,.72); }
-.hero-weather { position: relative; display: flex; align-items: center; min-width: 250px; gap: 20px; padding: 28px; border: 1px solid rgba(255,255,255,.2); border-radius: 18px; background: rgba(255,255,255,.1); box-shadow: inset 0 1px 0 rgba(255,255,255,.1); }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+.hero-actions a { display: inline-flex; align-items: center; gap: 9px; min-height: 42px; padding: 0 16px; border-radius: 10px; font-size: .78rem; font-weight: 800; text-decoration: none; transition: background .18s ease, transform .18s ease; }
+.hero-actions a:hover { transform: translateY(-1px); }
+.hero-primary { color: #174d72; background: #fff; box-shadow: 0 6px 16px rgba(5, 47, 76, .15); }.hero-primary:hover { background: #effaff; }
+.hero-secondary { border: 1px solid rgba(255,255,255,.35); color: #fff; background: rgba(255,255,255,.1); }.hero-secondary:hover { background: rgba(255,255,255,.18); }
+.hero-preview { display: grid; gap: 11px; padding: 17px; border: 1px solid rgba(255,255,255,.27); border-radius: 18px; background: rgba(8, 48, 77, .23); box-shadow: inset 0 1px 0 rgba(255,255,255,.13), 0 14px 26px rgba(5, 44, 70, .13); }
+.preview-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 1px 3px 3px; }.preview-heading span { color: #bce3f9; font-size: .62rem; font-weight: 900; letter-spacing: .14em; }.preview-heading small { color: rgba(255,255,255,.6); font-size: .64rem; }
+.hero-weather { position: relative; display: flex; align-items: center; min-width: 0; gap: 15px; padding: 18px; border: 1px solid rgba(255,255,255,.2); border-radius: 14px; background: rgba(255,255,255,.1); box-shadow: inset 0 1px 0 rgba(255,255,255,.1); }
 .sun { display: grid; width: 72px; height: 72px; border-radius: 50%; place-items: center; color: #ffdf6b; background: rgba(255,255,255,.12); font-size: 2.6rem; }
 .hero-weather div { display: grid; }
-.hero-weather strong { font-size: 2.5rem; line-height: 1; }
+.hero-weather div small { color: #bce3f9; font-size: .58rem; font-weight: 800; letter-spacing: .12em; }.hero-weather strong { margin-top: 3px; font-size: 2.25rem; line-height: 1; }
 .hero-weather span:last-child { margin-top: 8px; color: rgba(255,255,255,.72); font-size: .84rem; }
 .hero-weather-state { align-items: center; justify-content: center; color: rgba(255,255,255,.75); font-size: .8rem; }
+.preview-market, .preview-ai { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid rgba(255,255,255,.14); border-radius: 12px; background: rgba(255,255,255,.08); }.preview-market span, .preview-ai > span:last-child { display: grid; gap: 3px; }.preview-market b, .preview-ai b { color: rgba(255,255,255,.62); font-size: .58rem; letter-spacing: .1em; }.preview-market small, .preview-ai small { color: #fff; font-size: .76rem; font-weight: 700; }.preview-market strong { font-size: .86rem; }.preview-market .positive { color: #9ee6c8; }.preview-market .negative { color: #ffc1bd; }.preview-ai { justify-content: flex-start; }.preview-ai-icon { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 8px; color: #174f78; background: #c9ebff; font-weight: 900; }
+.trust-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin: 20px 0; padding: 17px 20px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.78); }.trust-strip > div { display: grid; gap: 4px; padding: 0 18px; border-right: 1px solid #e1ebf1; }.trust-strip > div:first-child { padding-left: 0; }.trust-strip > div:last-child { padding-right: 0; border-right: 0; }.trust-strip strong { color: #29475d; font-size: .78rem; }.trust-strip span { color: #7d92a0; font-size: .66rem; }
 .quick-strip { display: grid; grid-template-columns: repeat(4, 1fr); margin: 20px 0; padding: 17px 20px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.78); }
 .quick-strip > div { display: flex; align-items: center; gap: 8px; padding: 0 20px; border-right: 1px solid #e1ebf1; }
 .quick-strip > div:first-child { padding-left: 0; }
@@ -229,6 +261,7 @@ onMounted(loadNews)
 .quick-strip strong { margin-left: auto; color: #29475d; font-size: .82rem; }
 .quick-strip .positive { color: #16815d; }
 .quick-strip .negative { color: #bf5454; }
+.benefit-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 0 0 20px; }.benefit-strip article { display: grid; grid-template-columns: 34px 1fr; gap: 11px; align-items: start; padding: 17px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.76); }.benefit-icon { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 9px; color: var(--blue-700); background: var(--blue-100); font-size: 1rem; font-weight: 900; }.benefit-strip strong { color: #29475d; font-size: .78rem; line-height: 1.35; }.benefit-strip p { margin: 5px 0 0; color: #7d92a0; font-size: .67rem; line-height: 1.5; }
 .quick-dot { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: #4da2d6; }
 .air-dot { background: #33ab7a; }.market-dot { background: #ed8a69; }.rain-dot { background: #7c85d5; }
 .dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.42fr) minmax(340px, .9fr); gap: 20px; }
@@ -295,15 +328,17 @@ onMounted(loadNews)
 @media (max-width: 850px) {
   .dashboard-grid { grid-template-columns: 1fr; }
   .side-stack { grid-template-columns: repeat(2, 1fr); }
-  .hero-weather { min-width: 220px; }
+  .dashboard-hero { grid-template-columns: 1fr minmax(260px, .72fr); gap: 24px; padding-inline: 30px; }.hero-weather { min-width: 220px; }
   .quick-strip { grid-template-columns: repeat(2, 1fr); row-gap: 15px; }
   .quick-strip > div:nth-child(2) { border-right: 0; }
+  .trust-strip { grid-template-columns: repeat(2, 1fr); row-gap: 14px; }.trust-strip > div:nth-child(2) { border-right: 0; }.trust-strip > div:nth-child(3) { padding-left: 0; }
 }
 @media (max-width: 600px) {
   .dashboard-page { width: min(100% - 24px, 1120px); padding-top: 24px; }
-  .dashboard-hero { min-height: 0; padding: 30px 24px; }
-  .hero-weather { display: none; }
+  .dashboard-hero { display: block; min-height: 0; padding: 30px 24px; }.hero-preview { margin-top: 26px; }.hero-weather { display: flex; }.hero-weather .sun { width: 56px; height: 56px; font-size: 2rem; }
   .hero-copy { font-size: .86rem; }
+  .hero-actions { margin-top: 22px; }.hero-actions a { flex: 1; justify-content: center; }
+  .trust-strip { grid-template-columns: 1fr 1fr; padding: 15px 14px; }.trust-strip > div { padding: 0 10px; }.trust-strip > div:nth-child(3) { padding-left: 0; }.trust-strip > div:nth-child(4) { padding-right: 0; }
   .quick-strip { padding: 14px 12px; }
   .quick-strip > div { padding: 0 10px; }
   .quick-strip span:not(.quick-dot) { display: none; }
@@ -312,5 +347,6 @@ onMounted(loadNews)
   .news-item { grid-template-columns: 30px 1fr; gap: 8px; }
   .pro-banner { grid-template-columns: auto 1fr; padding: 18px; }
   .pro-banner a { grid-column: 1 / -1; text-align: center; }
+  .benefit-strip { grid-template-columns: 1fr; }.benefit-strip article { padding: 15px; }
 }
 </style>
