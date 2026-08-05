@@ -7,7 +7,7 @@ const COMPUTER = 1
 const PLAYER = 2
 const DIRECTIONS = [[1, 0], [0, 1], [1, 1], [1, -1]]
 const AI_TIME_LIMIT_MS = 30_000
-const PLAYER_TIME_LIMIT = 15
+const PLAYER_TIME_LIMIT = 10
 
 const createBoard = () => Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(EMPTY))
 
@@ -46,8 +46,8 @@ const statusText = computed(() => {
 })
 
 const timerState = computed(() => {
-  if (playerSeconds.value > 8) return 'normal'
-  if (playerSeconds.value > 4) return 'warning'
+  if (turn.value !== PLAYER || winner.value || isThinking.value) return 'normal'
+  if (playerSeconds.value > 3) return 'warning'
   return 'critical'
 })
 const timerWidth = computed(() => `${Math.max(0, (playerSeconds.value / PLAYER_TIME_LIMIT) * 100)}%`)
@@ -362,7 +362,7 @@ onUnmounted(stopPlayerTimer)
             <li>빈 칸을 선택하면 흑돌이 놓입니다.</li>
             <li>가로, 세로, 대각선으로 다섯 돌을 먼저 잇는 쪽이 승리합니다.</li>
           </ul>
-          <span class="difficulty-badge">난이도 · 강함 · 내 턴 15초</span>
+          <span class="difficulty-badge">난이도 · 강함 · 내 턴 10초</span>
         </div>
         <div class="history-panel">
           <div class="history-heading"><h2>최근 전적</h2><span>최근 10게임</span></div>
@@ -381,12 +381,12 @@ onUnmounted(stopPlayerTimer)
 <style scoped>
 .omok-page { position: relative; isolation: isolate; width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 44px 0 76px; color: var(--ink); }
 .omok-page::before { position: fixed; z-index: -1; inset: 0; pointer-events: none; background: transparent; content: ''; transition: background .8s ease; }
-.timer-warning-page::before { background: rgba(214, 91, 63, .08); }
-.timer-warning-page { animation: screen-shake .12s ease-in-out infinite alternate; }
-.timer-critical-page { animation: screen-shake-hard .07s ease-in-out infinite alternate; }
-.timer-critical-page::before { background: rgba(207, 54, 54, .16); animation: danger-flash .65s ease-in-out infinite alternate; }
-@keyframes screen-shake { from { transform: translate(-2px, 1px) rotate(-.12deg); } to { transform: translate(2px, -1px) rotate(.12deg); } }
-@keyframes screen-shake-hard { from { transform: translate(-4px, 2px) rotate(-.3deg); } to { transform: translate(4px, -2px) rotate(.3deg); } }
+.timer-warning-page::before { background: rgba(214, 57, 45, .24); }
+.timer-warning-page { animation: screen-shake .09s ease-in-out infinite alternate; }
+.timer-critical-page { animation: screen-shake-hard .045s ease-in-out infinite alternate; }
+.timer-critical-page::before { background: rgba(207, 25, 25, .48); animation: danger-flash .34s ease-in-out infinite alternate; }
+@keyframes screen-shake { from { transform: translate(-5px, 3px) rotate(-.35deg); } to { transform: translate(5px, -3px) rotate(.35deg); } }
+@keyframes screen-shake-hard { from { transform: translate(-8px, 5px) rotate(-.7deg); } to { transform: translate(8px, -5px) rotate(.7deg); } }
 @keyframes danger-flash { from { opacity: .55; } to { opacity: 1; } }
 .omok-header { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
 .eyebrow { margin: 0 0 8px; color: var(--blue-500); font-size: .7rem; font-weight: 900; letter-spacing: .16em; }
