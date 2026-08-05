@@ -6,6 +6,7 @@ import SelectButton from 'primevue/selectbutton'
 import Skeleton from 'primevue/skeleton'
 import { useToast } from 'primevue/usetoast'
 import StockWatchlist from '../components/StockWatchlist.vue'
+import StockVolumeLeaders from '../components/StockVolumeLeaders.vue'
 import StockFinancials from '../components/StockFinancials.vue'
 import StockAiAnalysis from '../components/StockAiAnalysis.vue'
 import { analyzeStockStrategy } from '../services/geminiApi'
@@ -24,7 +25,7 @@ const searchQuery = ref('')
 const searchSuggestions = ref(STOCK_MARKETS)
 const stockStore = useStockStore()
 const toast = useToast()
-const { favoriteSymbols, recentSymbols, selectedPeriod, selectedSymbol, quoteCache, profileCache } = storeToRefs(stockStore)
+const { favoriteSymbols, recentSymbols, selectedPeriod, selectedSymbol, quoteCache, profileCache, metricCache } = storeToRefs(stockStore)
 const selectedMarket = computed(() =>
   STOCK_MARKETS.find(({ symbol }) => symbol === selectedSymbol.value) ?? STOCK_MARKETS[0],
 )
@@ -35,6 +36,9 @@ const isListLoading = ref(true)
 const isDetailLoading = ref(true)
 const listError = ref('')
 const detailError = ref('')
+const isVolumeRankingLoading = ref(true)
+const volumeRankingError = ref('')
+const volumeRankingNotice = ref('')
 const chartData = ref(null)
 const chartSvg = ref(null)
 const hoveredChartIndex = ref(null)
@@ -100,6 +104,11 @@ const selectSearchSuggestion = ({ value }) => {
 }
 
 const quoteBySymbol = computed(() => quoteCache.value)
+const volumeLeaders = computed(() => STOCK_MARKETS
+  .map((market) => ({ ...market, ...metricCache.value[market.symbol] }))
+  .filter(({ averageVolume }) => Number.isFinite(averageVolume) && averageVolume > 0)
+  .sort((a, b) => b.averageVolume - a.averageVolume)
+  .slice(0, 5))
 const favoriteMarkets = computed(() => favoriteSymbols.value
   .map((symbol) => STOCK_MARKETS.find((market) => market.symbol === symbol))
   .filter(Boolean)
@@ -310,6 +319,20 @@ const loadFavoriteProfiles = async () => {
   ]))
 }
 
+const loadVolumeRanking = async (force = false) => {
+  isVolumeRankingLoading.value = true
+  volumeRankingError.value = ''
+  volumeRankingNotice.value = ''
+  const results = await Promise.allSettled(STOCK_MARKETS.map((market) => stockStore.getMetrics(market, force)))
+  const loadedCount = results.filter(({ status }) => status === 'fulfilled').length
+  if (!loadedCount && !volumeLeaders.value.length) {
+    volumeRankingError.value = '거래량 순위를 불러오지 못했습니다.'
+  } else if (loadedCount < STOCK_MARKETS.length) {
+    volumeRankingNotice.value = `${loadedCount}개 종목의 데이터로 계산했습니다. 일부 종목은 API 호출 한도로 제외되었습니다.`
+  }
+  isVolumeRankingLoading.value = false
+}
+
 const loadDetail = async (market, force = false) => {
   stockStore.selectStock(market.symbol)
   detailError.value = ''
@@ -415,6 +438,7 @@ async function loadChart(market, periodId, force = false) {
 
 const retryAll = () => {
   loadMarket(true)
+  loadVolumeRanking(true)
   loadDetail(selectedMarket.value, true)
 }
 
@@ -446,6 +470,7 @@ const toggleSelectedFavorite = () => {
 onMounted(async () => {
   await loadMarket()
   loadFavoriteProfiles()
+  loadVolumeRanking()
   loadDetail(selectedMarket.value)
 })
 </script>
@@ -473,6 +498,16 @@ onMounted(async () => {
       @remove-favorite="removeFavorite"
     />
     <p class="favorite-feedback" role="status" aria-live="polite">{{ favoriteMessage }}</p>
+
+    <StockVolumeLeaders
+      :items="volumeLeaders"
+      :selected-symbol="selectedMarket.symbol"
+      :is-loading="isVolumeRankingLoading"
+      :error="volumeRankingError"
+      :notice="volumeRankingNotice"
+      @select-market="loadDetail"
+      @retry="loadVolumeRanking(true)"
+    />
 
     <section class="stock-browser" aria-label="종목 탐색과 상세 정보">
       <aside class="stock-selector" aria-labelledby="stock-list-title">

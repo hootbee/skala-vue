@@ -27,7 +27,7 @@ export const STOCK_CACHE_TTL = Object.freeze({
   quote: 60_000,
   marketStatus: 60_000,
   profile: 24 * 60 * 60_000,
-  metrics: 30 * 60_000,
+  metrics: 6 * 60 * 60_000,
   news: 15 * 60_000,
   financials: 24 * 60 * 60_000,
   analysis: 6 * 60 * 60_000,
@@ -113,6 +113,7 @@ export const useStockStore = defineStore('stock', () => {
 
   const quoteCache = computed(() => rawCache(quoteEntries.value))
   const profileCache = computed(() => rawCache(profileEntries.value))
+  const metricCache = computed(() => rawCache(metricEntries.value))
   const favoriteCount = computed(() => favoriteSymbols.value.length)
   const isFavorite = (symbol) => favoriteSymbols.value.includes(symbol)
 
@@ -137,7 +138,7 @@ export const useStockStore = defineStore('stock', () => {
       localStorage.setItem(apiCacheStorageKey, JSON.stringify({
         quoteEntries: newestEntries(quoteEntries.value, 30),
         profileEntries: newestEntries(profileEntries.value, 30),
-        metricEntries: newestEntries(metricEntries.value, 12),
+        metricEntries: newestEntries(metricEntries.value, 30),
         newsEntries: newestEntries(newsEntries.value, 10),
         chartEntries: newestEntries(chartEntries.value, 12),
         financialEntries: newestEntries(financialEntries.value, 8),
@@ -328,6 +329,7 @@ export const useStockStore = defineStore('stock', () => {
     selectedPeriod,
     quoteCache,
     profileCache,
+    metricCache,
     favoriteCount,
     isFavorite,
     toggleFavorite,
@@ -338,6 +340,7 @@ export const useStockStore = defineStore('stock', () => {
     cacheQuotes,
     getQuote,
     getProfile,
+    getMetrics,
     getMarketStatus,
     getDetail,
     getChart,
