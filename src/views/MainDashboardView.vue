@@ -118,7 +118,7 @@ onMounted(loadNews)
     <header class="dashboard-hero">
       <div class="hero-content">
         <p class="date-label">{{ today }}</p>
-        <h1>오늘의 날씨와 미국 주식을<br><span>한 화면에서 확인하세요.</span></h1>
+        <h1><span class="hero-first-line">오늘의 날씨와 미국 주식을</span><br><span>한 화면에서 확인하세요.</span></h1>
         <p class="hero-copy">날씨, 시장, 최신 소식을 매일의 브리핑처럼 빠르게 살펴보세요.</p>
         <div class="hero-actions">
           <RouterLink class="hero-primary" to="/weather">지금 날씨 확인하기 <span aria-hidden="true">→</span></RouterLink>
@@ -235,7 +235,7 @@ onMounted(loadNews)
 .dashboard-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, .72fr); align-items: center; gap: 42px; min-height: 320px; padding: 42px 48px; overflow: hidden; border-radius: 22px; color: #fff; background: linear-gradient(125deg, #124f79 0%, #176fa7 62%, #3997cf 100%); box-shadow: 0 18px 42px rgba(30, 96, 141, .18); }
 .hero-content { min-width: 0; }
 .date-label { margin: 0 0 12px; color: #bce3f9; font-size: .82rem; font-weight: 700; }
-.dashboard-hero h1 { margin: 0; font-size: clamp(2.25rem, 5vw, 3.9rem); line-height: 1.12; letter-spacing: -.06em; }
+.dashboard-hero h1 { max-width: 850px; margin: 0; font-size: clamp(2rem, 4vw, 3.2rem); line-height: 1.16; letter-spacing: -.06em; }.hero-first-line { white-space: nowrap; }
 .dashboard-hero h1 span { color: #c9ebff; }
 .hero-copy { margin: 18px 0 0; color: rgba(255,255,255,.72); }
 .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
@@ -328,7 +328,7 @@ onMounted(loadNews)
 @media (max-width: 850px) {
   .dashboard-grid { grid-template-columns: 1fr; }
   .side-stack { grid-template-columns: repeat(2, 1fr); }
-  .dashboard-hero { grid-template-columns: 1fr minmax(260px, .72fr); gap: 24px; padding-inline: 30px; }.hero-weather { min-width: 220px; }
+  .dashboard-hero { display: block; min-height: 0; padding: 34px 30px; }.hero-preview { margin-top: 26px; }.hero-weather { min-width: 220px; }
   .quick-strip { grid-template-columns: repeat(2, 1fr); row-gap: 15px; }
   .quick-strip > div:nth-child(2) { border-right: 0; }
   .trust-strip { grid-template-columns: repeat(2, 1fr); row-gap: 14px; }.trust-strip > div:nth-child(2) { border-right: 0; }.trust-strip > div:nth-child(3) { padding-left: 0; }
@@ -337,6 +337,7 @@ onMounted(loadNews)
   .dashboard-page { width: min(100% - 24px, 1120px); padding-top: 24px; }
   .dashboard-hero { display: block; min-height: 0; padding: 30px 24px; }.hero-preview { margin-top: 26px; }.hero-weather { display: flex; }.hero-weather .sun { width: 56px; height: 56px; font-size: 2rem; }
   .hero-copy { font-size: .86rem; }
+  .hero-first-line { white-space: normal; }
   .hero-actions { margin-top: 22px; }.hero-actions a { flex: 1; justify-content: center; }
   .trust-strip { grid-template-columns: 1fr 1fr; padding: 15px 14px; }.trust-strip > div { padding: 0 10px; }.trust-strip > div:nth-child(3) { padding-left: 0; }.trust-strip > div:nth-child(4) { padding-right: 0; }
   .quick-strip { padding: 14px 12px; }

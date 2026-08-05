@@ -10,6 +10,7 @@ import StockVolumeLeaders from '../components/StockVolumeLeaders.vue'
 import MarketIndexEtfs from '../components/MarketIndexEtfs.vue'
 import StockComparisonChart from '../components/StockComparisonChart.vue'
 import StockSectorHeatmap from '../components/StockSectorHeatmap.vue'
+import StockYearAgoCard from '../components/StockYearAgoCard.vue'
 import StockFinancials from '../components/StockFinancials.vue'
 import StockAiAnalysis from '../components/StockAiAnalysis.vue'
 import { analyzeStockStrategy } from '../services/geminiApi'
@@ -47,6 +48,21 @@ const volumeRankingNotice = ref('')
 const marketEtfs = ref([])
 const isMarketEtfLoading = ref(true)
 const marketEtfError = ref('')
+const marketBrief = computed(() => {
+  const available = marketEtfs.value.filter(({ changePercent }) => Number.isFinite(changePercent))
+  if (!available.length) return { title: '오늘의 시장 흐름', body: '대표 지수 데이터를 불러오면 오늘의 방향을 요약해 드립니다.', average: null, rising: 0, total: 0 }
+  const average = available.reduce((sum, item) => sum + item.changePercent, 0) / available.length
+  const rising = available.filter(({ changePercent }) => changePercent >= 0).length
+  return {
+    title: average >= 0 ? '대표 지수는 상승 흐름' : '대표 지수는 조정 흐름',
+    body: `${available.map(({ name, changePercent }) => `${name} ${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`).join(' · ')}로 집계됐습니다.`,
+    average,
+    rising,
+    total: available.length,
+  }
+})
+const isMarketInsightsOpen = ref(false)
+const isInsightsLoaded = ref(false)
 const chartData = ref(null)
 const chartSvg = ref(null)
 const hoveredChartIndex = ref(null)
@@ -366,6 +382,15 @@ const loadSectorQuotes = async (force = false) => {
   await Promise.allSettled(markets.map((market) => stockStore.getQuote(market, force)))
 }
 
+const toggleMarketInsights = (event) => {
+  isMarketInsightsOpen.value = event.target.open
+  if (event.target.open && !isInsightsLoaded.value) {
+    isInsightsLoaded.value = true
+    loadSectorQuotes()
+    loadVolumeRanking()
+  }
+}
+
 const loadVolumeRanking = async (force = false) => {
   isVolumeRankingLoading.value = true
   volumeRankingError.value = ''
@@ -497,8 +522,12 @@ async function loadChart(market, periodId, force = false) {
 
 const retryAll = () => {
   loadMarket(true)
-  loadSectorQuotes(true)
-  loadVolumeRanking(true)
+  if (isMarketInsightsOpen.value) {
+    loadSectorQuotes(true)
+    loadVolumeRanking(true)
+  } else {
+    isInsightsLoaded.value = false
+  }
   loadMarketEtfs(true)
   loadDetail(selectedMarket.value, true)
 }
@@ -530,9 +559,7 @@ const toggleSelectedFavorite = () => {
 
 onMounted(async () => {
   await loadMarket()
-  loadSectorQuotes()
   loadFavoriteProfiles()
-  loadVolumeRanking()
   loadMarketEtfs()
   loadDetail(selectedMarket.value)
 })
@@ -552,6 +579,59 @@ onMounted(async () => {
       </div>
     </header>
 
+    <section class="market-priority" aria-label="오늘의 시장 요약">
+      <MarketIndexEtfs
+        class="priority-index"
+        :items="marketEtfs"
+        :is-loading="isMarketEtfLoading"
+        :error="marketEtfError"
+        @retry="loadMarketEtfs(true)"
+      />
+      <aside class="market-brief" aria-labelledby="market-brief-title">
+        <p class="eyebrow">TODAY'S BRIEF</p>
+        <h2 id="market-brief-title">{{ marketBrief.title }}</h2>
+        <p class="market-brief-copy">{{ marketBrief.body }}</p>
+        <dl class="market-brief-kpis">
+          <div><dt>상승 지수</dt><dd>{{ marketBrief.total ? `${marketBrief.rising}/${marketBrief.total}` : '—' }}</dd></div>
+          <div><dt>평균 등락률</dt><dd :class="{ negative: marketBrief.average < 0 }">{{ Number.isFinite(marketBrief.average) ? `${marketBrief.average >= 0 ? '+' : ''}${marketBrief.average.toFixed(2)}%` : '—' }}</dd></div>
+        </dl>
+      </aside>
+    </section>
+
+    <details class="market-insights" :open="isMarketInsightsOpen" @toggle="toggleMarketInsights">
+      <summary>
+        <span><small class="eyebrow">MARKET INSIGHTS</small><strong>시장 인사이트</strong></span>
+        <span class="insights-summary">거래량·종목 비교·섹터 흐름</span>
+      </summary>
+      <div v-if="isMarketInsightsOpen" class="market-insights-content">
+        <StockYearAgoCard
+          :markets="STOCK_MARKETS"
+          default-symbol="NVDA"
+        />
+
+        <StockVolumeLeaders
+          :items="volumeLeaders"
+          :selected-symbol="selectedMarket.symbol"
+          :is-loading="isVolumeRankingLoading"
+          :error="volumeRankingError"
+          :notice="volumeRankingNotice"
+          @select-market="loadDetail"
+          @retry="loadVolumeRanking(true)"
+        />
+
+        <StockComparisonChart
+          :markets="STOCK_MARKETS"
+          :default-symbols="favoriteSymbols"
+        />
+
+        <StockSectorHeatmap
+          :markets="STOCK_MARKETS"
+          :quotes="quoteCache"
+          :metrics="metricCache"
+        />
+      </div>
+    </details>
+
     <StockWatchlist
       :items="favoriteMarkets"
       :recent-items="recentMarkets"
@@ -561,34 +641,6 @@ onMounted(async () => {
       @remove-favorite="removeFavorite"
     />
     <p class="favorite-feedback" role="status" aria-live="polite">{{ favoriteMessage }}</p>
-
-    <MarketIndexEtfs
-      :items="marketEtfs"
-      :is-loading="isMarketEtfLoading"
-      :error="marketEtfError"
-      @retry="loadMarketEtfs(true)"
-    />
-
-    <StockVolumeLeaders
-      :items="volumeLeaders"
-      :selected-symbol="selectedMarket.symbol"
-      :is-loading="isVolumeRankingLoading"
-      :error="volumeRankingError"
-      :notice="volumeRankingNotice"
-      @select-market="loadDetail"
-      @retry="loadVolumeRanking(true)"
-    />
-
-    <StockComparisonChart
-      :markets="STOCK_MARKETS"
-      :default-symbols="favoriteSymbols"
-    />
-
-    <StockSectorHeatmap
-      :markets="STOCK_MARKETS"
-      :quotes="quoteCache"
-      :metrics="metricCache"
-    />
 
     <section class="stock-browser" aria-label="종목 탐색과 상세 정보">
       <aside class="stock-selector" aria-labelledby="stock-list-title">
@@ -924,8 +976,18 @@ onMounted(async () => {
 .market-session > span { width: 9px; height: 9px; border-radius: 50%; background: #9aaab5; }
 .market-session.open > span { background: #1f9d70; box-shadow: 0 0 0 4px rgba(31,157,112,.12); }
 .market-session div { display: grid; gap: 2px; }.market-session small { color: var(--muted); font-size: .67rem; }.market-session strong { font-size: .84rem; }
+.market-priority { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(250px, .65fr); align-items: stretch; gap: 20px; margin-bottom: 28px; }.market-priority :deep(.market-etfs) { height: 100%; margin-bottom: 0; box-sizing: border-box; }
+.market-brief { display: flex; min-height: 100%; flex-direction: column; justify-content: space-between; padding: 25px 23px; border-radius: 18px; color: #fff; background: linear-gradient(145deg, #154f79, #247fae); box-shadow: 0 14px 30px rgba(29, 99, 139, .16); }.market-brief .eyebrow { color: #bce3f9; }.market-brief h2 { max-width: 230px; margin: 0; font-size: clamp(1.35rem, 2.5vw, 1.9rem); line-height: 1.2; letter-spacing: -.05em; }.market-brief-copy { margin: 18px 0 24px; color: rgba(255,255,255,.76); font-size: .76rem; line-height: 1.65; }.market-brief-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: auto 0 0; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.2); }.market-brief-kpis div { display: grid; gap: 5px; }.market-brief-kpis dt { color: rgba(255,255,255,.62); font-size: .64rem; }.market-brief-kpis dd { margin: 0; color: #fff; font-size: 1rem; }.market-brief-kpis dd.negative { color: #ffc1bd; }
 .favorite-feedback { min-height: 18px; margin: -12px 0 10px; color: var(--blue-700); font-size: .7rem; text-align: right; }
-.stock-browser { display: grid; grid-template-columns: 310px minmax(0, 1fr); min-width: 0; align-items: start; gap: 20px; }
+.market-insights { margin: 20px 0; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,.76); box-shadow: var(--shadow); }
+.market-insights summary { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 22px; color: var(--ink); cursor: pointer; list-style: none; }
+.market-insights summary::-webkit-details-marker { display: none; }
+.market-insights summary::after { content: '＋'; display: grid; width: 27px; height: 27px; flex: 0 0 auto; place-items: center; border: 1px solid #bdd2df; border-radius: 8px; color: var(--blue-700); font-size: 1rem; }
+.market-insights[open] summary::after { content: '−'; }
+.market-insights summary:focus-visible { outline: 3px solid rgba(49,139,208,.3); outline-offset: -3px; }
+.market-insights summary > span:first-child { display: grid; gap: 4px; }.market-insights summary .eyebrow { margin: 0; font-size: .61rem; }.market-insights summary strong { font-size: 1.05rem; letter-spacing: -.03em; }.insights-summary { margin-left: auto; color: var(--muted); font-size: .7rem; }
+.market-insights-content { display: grid; gap: 20px; padding: 24px 22px; border-top: 1px solid var(--line); }.market-insights-content > * { margin: 0 !important; }
+.stock-browser { display: grid; grid-template-columns: 310px minmax(0, 1fr); min-width: 0; align-items: start; gap: 20px; margin-top: 28px; }
 .stock-selector, .stock-detail { min-width: 0; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); }
 .stock-selector { position: sticky; top: 16px; padding: 22px 16px 16px; }
 .selector-heading, .section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
@@ -1016,7 +1078,7 @@ dt { color: var(--muted); font-size: .69rem; }dd { margin: 0; font-size: .88rem;
 .news-list { border-top: 1px solid var(--line); }.news-item { padding: 17px 0; border-bottom: 1px solid var(--line); }.news-item > div { display: flex; gap: 8px; color: var(--muted); font-size: .66rem; }.news-item h4 { margin: 6px 0; font-size: .9rem; line-height: 1.4; }.news-item h4 a { color: var(--ink); text-decoration: none; }.news-item h4 a:hover { color: var(--blue-700); text-decoration: underline; }.news-item p { display: -webkit-box; margin: 0; overflow: hidden; color: var(--muted); font-size: .72rem; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }.news-empty { padding: 30px; color: var(--muted); text-align: center; }
 .data-notice { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-top: 20px; padding: 18px 22px; border: 1px solid var(--line); border-radius: 14px; background: #edf6fb; }.data-notice strong { font-size: .8rem; }.data-notice p { margin: 4px 0 0; color: var(--muted); font-size: .7rem; }.data-notice button { flex: 0 0 auto; padding: 9px 12px; border: 1px solid #aecbdb; border-radius: 8px; color: var(--blue-700); background: #fff; font-weight: 700; cursor: pointer; }
 @keyframes spin { to { transform: rotate(360deg); } }
-@media (max-width: 900px) { .stock-browser { grid-template-columns: minmax(0, 1fr); }.stock-selector { position: static; }.stock-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: min(520px, 55vh); gap: 3px; }.stock-list li + li { margin: 0; }.stock-detail { min-height: 600px; }.metrics-grid { grid-template-columns: repeat(2, 1fr); }.metrics-grid div:nth-child(2n) { border-right: 0; }.metrics-grid div:nth-child(n+3) { border-top: 1px solid var(--line); } }
-@media (max-width: 650px) { .stocks-page { width: min(100% - 24px, 1180px); padding-top: 26px; }.stocks-header { align-items: flex-start; flex-direction: column; gap: 18px; }.market-session { min-width: 0; }.favorite-feedback { text-align: left; }.stock-list { grid-template-columns: 1fr; max-height: min(440px, 52vh); }.stock-detail { padding: 20px 16px; }.company-heading, .price-summary { align-items: flex-start; flex-direction: column; }.company-actions { align-items: flex-start; flex-direction: column; }.update-meta { justify-items: start; }.update-meta small { text-align: left; }.daily-grid { grid-template-columns: repeat(2, 1fr); }.daily-grid div:nth-child(2) { border-right: 0; }.daily-grid div:nth-child(n+3) { border-top: 1px solid var(--line); }.metrics-grid { grid-template-columns: repeat(2, 1fr); }.price-chart { --axis-width: 42px; padding-inline: 10px; }.chart-canvas { height: 230px; }.chart-y-axis { font-size: .55rem; }.chart-interaction-hint { text-align: left; }.chart-x-axis time:nth-child(even) { display: none; }.range-labels { gap: 8px; }.data-notice { align-items: flex-start; flex-direction: column; } }
+@media (max-width: 900px) { .market-priority { grid-template-columns: 1fr; }.market-brief { min-height: 220px; }.stock-browser { grid-template-columns: minmax(0, 1fr); }.stock-selector { position: static; }.stock-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: min(520px, 55vh); gap: 3px; }.stock-list li + li { margin: 0; }.stock-detail { min-height: 600px; }.metrics-grid { grid-template-columns: repeat(2, 1fr); }.metrics-grid div:nth-child(2n) { border-right: 0; }.metrics-grid div:nth-child(n+3) { border-top: 1px solid var(--line); } }
+@media (max-width: 650px) { .stocks-page { width: min(100% - 24px, 1180px); padding-top: 26px; }.stocks-header { align-items: flex-start; flex-direction: column; gap: 18px; }.market-session { min-width: 0; }.favorite-feedback { text-align: left; }.stock-list { grid-template-columns: 1fr; max-height: min(440px, 52vh); }.stock-detail { padding: 20px 16px; }.company-heading, .price-summary { align-items: flex-start; flex-direction: column; }.company-actions { align-items: flex-start; flex-direction: column; }.update-meta { justify-items: start; }.update-meta small { text-align: left; }.daily-grid { grid-template-columns: repeat(2, 1fr); }.daily-grid div:nth-child(2) { border-right: 0; }.daily-grid div:nth-child(n+3) { border-top: 1px solid var(--line); }.metrics-grid { grid-template-columns: repeat(2, 1fr); }.price-chart { --axis-width: 42px; padding-inline: 10px; }.chart-canvas { height: 230px; }.chart-y-axis { font-size: .55rem; }.chart-interaction-hint { text-align: left; }.chart-x-axis time:nth-child(even) { display: none; }.range-labels { gap: 8px; }.market-insights summary { align-items: flex-start; }.insights-summary { display: none; }.market-insights-content { padding: 20px 14px; }.data-notice { align-items: flex-start; flex-direction: column; } }
 @media (prefers-reduced-motion: reduce) { .loader { animation: none; } * { scroll-behavior: auto !important; transition: none !important; } }
 </style>
