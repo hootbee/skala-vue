@@ -7,7 +7,7 @@ const COMPUTER = 1
 const PLAYER = 2
 const DIRECTIONS = [[1, 0], [0, 1], [1, 1], [1, -1]]
 const AI_TIME_LIMIT_MS = 30_000
-const PLAYER_TIME_LIMIT = 20
+const PLAYER_TIME_LIMIT = 15
 
 const createBoard = () => Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(EMPTY))
 
@@ -46,8 +46,8 @@ const statusText = computed(() => {
 })
 
 const timerState = computed(() => {
-  if (playerSeconds.value > 10) return 'normal'
-  if (playerSeconds.value > 5) return 'warning'
+  if (playerSeconds.value > 8) return 'normal'
+  if (playerSeconds.value > 4) return 'warning'
   return 'critical'
 })
 const timerWidth = computed(() => `${Math.max(0, (playerSeconds.value / PLAYER_TIME_LIMIT) * 100)}%`)
@@ -319,7 +319,7 @@ onUnmounted(stopPlayerTimer)
 </script>
 
 <template>
-  <main class="omok-page">
+    <main class="omok-page" :class="{ 'timer-warning-page': timerState === 'warning', 'timer-critical-page': timerState === 'critical' }">
     <header class="omok-header">
       <div>
         <p class="eyebrow">OMOK PLAYGROUND</p>
@@ -362,7 +362,7 @@ onUnmounted(stopPlayerTimer)
             <li>빈 칸을 선택하면 흑돌이 놓입니다.</li>
             <li>가로, 세로, 대각선으로 다섯 돌을 먼저 잇는 쪽이 승리합니다.</li>
           </ul>
-          <span class="difficulty-badge">난이도 · 강함 · 생각 제한 30초</span>
+          <span class="difficulty-badge">난이도 · 강함 · 내 턴 15초</span>
         </div>
         <div class="history-panel">
           <div class="history-heading"><h2>최근 전적</h2><span>최근 10게임</span></div>
@@ -379,7 +379,15 @@ onUnmounted(stopPlayerTimer)
 </template>
 
 <style scoped>
-.omok-page { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 44px 0 76px; color: var(--ink); }
+.omok-page { position: relative; isolation: isolate; width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 44px 0 76px; color: var(--ink); }
+.omok-page::before { position: fixed; z-index: -1; inset: 0; pointer-events: none; background: transparent; content: ''; transition: background .8s ease; }
+.timer-warning-page::before { background: rgba(214, 91, 63, .08); }
+.timer-warning-page { animation: screen-shake .12s ease-in-out infinite alternate; }
+.timer-critical-page { animation: screen-shake-hard .07s ease-in-out infinite alternate; }
+.timer-critical-page::before { background: rgba(207, 54, 54, .16); animation: danger-flash .65s ease-in-out infinite alternate; }
+@keyframes screen-shake { from { transform: translate(-2px, 1px) rotate(-.12deg); } to { transform: translate(2px, -1px) rotate(.12deg); } }
+@keyframes screen-shake-hard { from { transform: translate(-4px, 2px) rotate(-.3deg); } to { transform: translate(4px, -2px) rotate(.3deg); } }
+@keyframes danger-flash { from { opacity: .55; } to { opacity: 1; } }
 .omok-header { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
 .eyebrow { margin: 0 0 8px; color: var(--blue-500); font-size: .7rem; font-weight: 900; letter-spacing: .16em; }
 h1 { margin: 0; font-size: clamp(2rem, 4vw, 3rem); letter-spacing: -.06em; }
@@ -418,6 +426,6 @@ h1 { margin: 0; font-size: clamp(2rem, 4vw, 3rem); letter-spacing: -.06em; }
 .legend { display: flex; flex-wrap: wrap; gap: 14px; padding: 0 4px; color: var(--muted); font-size: .78rem; font-weight: 700; }
 .legend span { display: inline-flex; align-items: center; gap: 7px; }
 .legend-stone { display: inline-block; width: 15px; height: 15px; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,.2); }.legend-stone.black { background: #17212a; }.legend-stone.white { border: 1px solid #a9b6bf; background: #f4f7f8; }
-@media (prefers-reduced-motion: reduce) { .timer-critical { animation: none; }.timer-track span { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .timer-critical, .timer-warning-page, .timer-critical-page, .timer-critical-page::before { animation: none; }.timer-track span, .omok-page::before { transition: none; } }
 @media (max-width: 760px) { .omok-page { width: min(100% - 24px, 1120px); padding-top: 28px; }.omok-header { align-items: flex-start; flex-direction: column; gap: 17px; }.omok-layout { grid-template-columns: 1fr; }.board-panel { padding: 12px; }.board { padding: 8px; }.game-info { grid-template-columns: 1fr; } }
 </style>
