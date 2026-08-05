@@ -18,6 +18,7 @@ const loadingIds = ref([])
 const weatherById = ref({})
 const errorsById = ref({})
 const statusMessage = ref('지도나 지역 버튼을 눌러 날씨를 비교해 보세요.')
+const lastActiveRegion = ref(null)
 const markerById = new Map()
 let map
 
@@ -59,7 +60,7 @@ const loadRegionWeather = async (region) => {
   try {
     const weather = await fetchCurrentWeather(region)
     weatherById.value = { ...weatherById.value, [region.id]: weather }
-    statusMessage.value = `${region.name} 날씨를 불러왔습니다. 현재 ${configStore.formatTemperature(weather.temp)}, ${weather.status}입니다.`
+    statusMessage.value = `${region.name} (${region.landmarkName ?? '대표 지역'}) 날씨를 불러왔습니다. 현재 ${configStore.formatTemperature(weather.temp)}, ${weather.status}입니다.`
   } catch (error) {
     errorsById.value = { ...errorsById.value, [region.id]: getWeatherErrorMessage(error) }
     statusMessage.value = `${region.name} 날씨를 불러오지 못했습니다.`
@@ -69,6 +70,7 @@ const loadRegionWeather = async (region) => {
 }
 
 const toggleRegion = async (region) => {
+  lastActiveRegion.value = region
   if (isSelected(region.id)) {
     selectedIds.value = selectedIds.value.filter((id) => id !== region.id)
     statusMessage.value = `${region.name}을 비교 목록에서 제외했습니다.`
@@ -78,7 +80,7 @@ const toggleRegion = async (region) => {
   }
 
   selectedIds.value = [...selectedIds.value, region.id]
-  statusMessage.value = `${region.name}을 비교 목록에 추가했습니다.`
+  statusMessage.value = `${region.name} (${region.landmarkName ?? ''})을 비교 목록에 추가했습니다.`
   await nextTick()
   updateMarker(region)
   if (!weatherById.value[region.id] && !isLoading(region.id)) await loadRegionWeather(region)
@@ -91,6 +93,7 @@ const retryRegion = (region) => {
 const clearSelection = async () => {
   const previousIds = [...selectedIds.value]
   selectedIds.value = []
+  lastActiveRegion.value = null
   statusMessage.value = '선택한 지역을 모두 초기화했습니다.'
   await nextTick()
   previousIds.forEach((id) => {
@@ -138,10 +141,17 @@ onMounted(() => {
 
   map.on('click', (event) => {
     const nearest = getNearestRegion(event.latlng)
+    lastActiveRegion.value = nearest
     if (!isSelected(nearest.id)) toggleRegion(nearest)
-    else statusMessage.value = `${nearest.name}은 이미 비교 목록에 있습니다.`
+    else statusMessage.value = `${nearest.name} (${nearest.landmarkName})은 이미 비교 목록에 있습니다.`
   })
 })
+
+const handleImageError = (event) => {
+  if (event?.target?.parentElement) {
+    event.target.parentElement.style.display = 'none'
+  }
+}
 
 onBeforeUnmount(() => {
   map?.remove()
@@ -151,11 +161,24 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="map-section" aria-labelledby="korea-map-title">
+    <div
+      v-if="lastActiveRegion?.landmarkImg"
+      class="section-landmark-photo"
+      aria-hidden="true"
+      :style="{ backgroundImage: `url(${lastActiveRegion.landmarkImg})` }"
+    ></div>
+    <div
+      v-else-if="lastActiveRegion?.landmarkSvg"
+      class="section-landmark-backdrop"
+      aria-hidden="true"
+      v-html="lastActiveRegion.landmarkSvg"
+    ></div>
+
     <div class="map-heading">
       <div>
         <p class="eyebrow">KOREA WEATHER MAP</p>
         <h2 id="korea-map-title">지도에서 지역 날씨 비교</h2>
-        <p>지도 위 지역 지점이나 빈 곳을 누르면 가장 가까운 시·도의 날씨를 추가합니다.</p>
+        <p>지도 위 지역 지점이나 빈 곳을 누르면 그 지역의 랜드마크 배경과 날씨를 추가합니다.</p>
       </div>
       <div class="selection-count">
         <strong>{{ selectedIds.length }}</strong><span>개 지역 선택</span>
@@ -178,14 +201,50 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <p class="map-status" aria-live="polite">{{ statusMessage }}</p>
+    <div v-if="lastActiveRegion" class="landmark-spotlight-banner">
+      <div
+        v-if="lastActiveRegion.landmarkImg"
+        class="spotlight-img-box"
+      >
+        <img
+          :src="lastActiveRegion.landmarkImg"
+          :alt="`${lastActiveRegion.name} ${lastActiveRegion.landmarkName}`"
+          class="spotlight-img"
+          @error="handleImageError"
+        />
+      </div>
+      <div class="spotlight-info">
+        <span class="spotlight-badge">🏛️ {{ lastActiveRegion.name }} 대표 랜드마크</span>
+        <h4>{{ lastActiveRegion.landmarkName }}</h4>
+        <p>{{ lastActiveRegion.landmarkDesc }}</p>
+      </div>
+    </div>
 
     <div v-if="selectedRegions.length" class="comparison-grid" aria-label="선택 지역 날씨 비교">
       <article v-for="region in selectedRegions" :key="region.id" class="comparison-card">
+        <!-- Prominent Landmark Photo Banner -->
+        <div v-if="region.landmarkImg" class="card-landmark-photo-banner">
+          <img
+            :src="region.landmarkImg"
+            :alt="`${region.name} ${region.landmarkName}`"
+            class="landmark-photo-img"
+            @error="handleImageError"
+          />
+          <div class="photo-overlay"></div>
+          <div class="landmark-photo-tag">
+            <span aria-hidden="true">🏛️</span>
+            <span>{{ region.landmarkName }}</span>
+          </div>
+        </div>
+
         <div class="comparison-heading">
           <div><span class="region-pin" aria-hidden="true"></span><h3>{{ region.name }}</h3></div>
           <button type="button" :aria-label="`${region.name} 비교에서 삭제`" @click="toggleRegion(region)">×</button>
         </div>
+
+        <p v-if="region.landmarkDesc" class="landmark-desc-text">
+          📍 {{ region.landmarkDesc }}
+        </p>
 
         <div v-if="isLoading(region.id)" class="card-state" role="status">날씨를 불러오는 중…</div>
         <div v-else-if="errorsById[region.id]" class="card-state error" role="alert">
@@ -211,13 +270,59 @@ onBeforeUnmount(() => {
     </div>
     <div v-else class="empty-comparison">
       <span aria-hidden="true">⌖</span>
-      <p>아직 선택한 지역이 없습니다.<br>여러 지역을 선택하면 한눈에 비교할 수 있어요.</p>
+      <p>아직 선택한 지역이 없습니다.<br>지도나 버튼을 누르면 해당 지역 랜드마크 배경과 함께 날씨를 비교할 수 있어요.</p>
     </div>
   </section>
 </template>
 
 <style scoped>
-.map-section { margin: 22px 0 28px; padding: 28px; border: 1px solid #cbdfea; border-radius: 20px; background: rgba(255,255,255,.9); box-shadow: var(--shadow); }
+.map-section {
+  position: relative;
+  overflow: hidden;
+  margin: 22px 0 28px;
+  padding: 28px;
+  border: 1px solid #cbdfea;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow);
+}
+.section-landmark-photo {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.12;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity 0.5s ease, background-image 0.5s ease;
+  filter: contrast(1.05) brightness(1.05);
+}
+.section-landmark-backdrop {
+  position: absolute;
+  right: -20px;
+  bottom: -20px;
+  width: 320px;
+  height: 320px;
+  color: #17649a;
+  opacity: 0.07;
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity 0.5s ease;
+}
+.section-landmark-backdrop :deep(svg) {
+  width: 100%;
+  height: 100%;
+}
+.map-heading,
+.map-canvas,
+.region-buttons,
+.map-status,
+.comparison-grid,
+.empty-comparison {
+  position: relative;
+  z-index: 1;
+}
 .map-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
 .eyebrow { margin: 0 0 7px; color: var(--blue-500); font-size: .68rem; font-weight: 800; letter-spacing: .17em; }
 .map-heading h2 { margin: 0 0 7px; color: #1f4057; font-size: 1.55rem; letter-spacing: -.04em; }
@@ -231,26 +336,171 @@ onBeforeUnmount(() => {
 .map-canvas :deep(.leaflet-control-attribution) { font-size: 9px; }
 .map-canvas :deep(.leaflet-tooltip) { border: 0; border-radius: 7px; color: #244b64; box-shadow: 0 4px 12px rgba(28,69,96,.16); font-family: 'Noto Sans KR', sans-serif; font-size: .68rem; font-weight: 800; }
 .region-buttons { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 15px; }
-.region-buttons button { display: inline-flex; align-items: center; min-height: 34px; gap: 6px; padding: 6px 10px; border: 1px solid #cfdee7; border-radius: 99px; color: #587487; background: #fff; font-size: .7rem; font-weight: 700; }
+.region-buttons button { display: inline-flex; align-items: center; min-height: 34px; gap: 6px; padding: 6px 10px; border: 1px solid #cfdee7; border-radius: 99px; color: #587487; background: #fff; font-size: .7rem; font-weight: 700; transition: border-color 0.2s, background 0.2s; }
 .region-buttons button:hover { border-color: #68a9d2; background: #f0f8fd; }
 .region-buttons button.selected { border-color: #17649a; color: #17649a; background: #e8f4fc; }
 .region-buttons button span { width: 6px; height: 6px; border-radius: 50%; background: #69a9d2; }
 .region-buttons button.selected span { background: #e85e55; }
 .map-status { min-height: 20px; margin: 11px 2px 0; color: #718898; font-size: .7rem; }
+.landmark-spotlight-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 14px;
+  padding: 12px 16px;
+  border: 1px solid #bde0fe;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #e8f4fc 0%, #f0f8ff 100%);
+  box-shadow: 0 4px 12px rgba(23, 100, 154, 0.08);
+}
+.spotlight-img-box {
+  width: 96px;
+  height: 68px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid #a2d2ff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+.spotlight-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.spotlight-info { min-width: 0; }
+.spotlight-badge {
+  display: inline-block;
+  color: var(--blue-700);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+.spotlight-info h4 {
+  margin: 2px 0 3px;
+  color: #1a415a;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+}
+.spotlight-info p {
+  margin: 0;
+  color: #5c788d;
+  font-size: 0.75rem;
+}
 .comparison-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
-.comparison-card { min-width: 0; padding: 18px; border: 1px solid #d4e3eb; border-radius: 14px; background: #fff; }
+.comparison-card {
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid #d4e3eb;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 4px 14px rgba(24, 62, 89, 0.07);
+}
+.card-landmark-photo-banner {
+  position: relative;
+  height: 130px;
+  margin: -18px -18px 14px;
+  overflow: hidden;
+  border-bottom: 1px solid #d4e3eb;
+}
+.landmark-photo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+.comparison-card:hover .landmark-photo-img {
+  transform: scale(1.05);
+}
+.photo-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(16, 42, 62, 0.75) 0%, rgba(16, 42, 62, 0.1) 60%, transparent 100%);
+}
+.landmark-photo-tag {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #194360;
+  font-size: 0.72rem;
+  font-weight: 800;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.landmark-desc-text {
+  margin: 4px 0 10px;
+  color: #60798b;
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+.card-landmark-img-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.16;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity 0.4s ease;
+  mask-image: linear-gradient(to bottom right, rgba(0,0,0,0.9), rgba(0,0,0,0.15));
+  -webkit-mask-image: linear-gradient(to bottom right, rgba(0,0,0,0.9), rgba(0,0,0,0.15));
+}
+.card-landmark-bg {
+  position: absolute;
+  right: -15px;
+  bottom: -15px;
+  width: 170px;
+  height: 170px;
+  color: #276f9e;
+  opacity: 0.11;
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity 0.4s ease;
+}
+.card-landmark-bg :deep(svg) {
+  width: 100%;
+  height: 100%;
+}
+.comparison-heading,
+.landmark-badge,
+.current-weather,
+.comparison-metrics,
+.detail-link,
+.card-state {
+  position: relative;
+  z-index: 1;
+}
 .comparison-heading { display: flex; align-items: center; justify-content: space-between; }
 .comparison-heading > div { display: flex; align-items: center; gap: 7px; }
 .region-pin { width: 8px; height: 8px; border-radius: 50%; background: #e85e55; box-shadow: 0 0 0 4px rgba(232,94,85,.1); }
 .comparison-heading h3 { margin: 0; color: #35546a; font-size: .9rem; }
-.comparison-heading > button { width: 28px; height: 28px; border: 0; border-radius: 7px; color: #8296a4; background: #f1f6f9; font-size: 1.15rem; }
-.current-weather { display: flex; align-items: center; gap: 12px; margin: 18px 0; }
+.comparison-heading > button { width: 28px; height: 28px; border: 0; border-radius: 7px; color: #8296a4; background: #f1f6f9; font-size: 1.15rem; cursor: pointer; }
+.landmark-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(232, 244, 252, 0.85);
+  border: 1px solid rgba(186, 219, 239, 0.6);
+  color: #265575;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+.current-weather { display: flex; align-items: center; gap: 12px; margin: 14px 0 16px; }
 .current-weather > span { font-size: 2rem; }
 .current-weather div { min-width: 0; }
 .current-weather strong { color: #183e59; font-size: 1.8rem; letter-spacing: -.05em; }
 .current-weather p { overflow: hidden; margin: 2px 0 0; color: #7a8f9e; font-size: .7rem; text-overflow: ellipsis; white-space: nowrap; }
 .comparison-metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; overflow: hidden; margin: 0 0 14px; border: 1px solid #e2ebf0; border-radius: 9px; background: #e2ebf0; }
-.comparison-metrics div { padding: 9px; background: #f8fbfd; }
+.comparison-metrics div { padding: 9px; background: rgba(248, 251, 253, 0.92); }
 .comparison-metrics dt { color: #8598a5; font-size: .6rem; }
 .comparison-metrics dd { margin: 3px 0 0; color: #456278; font-size: .72rem; font-weight: 800; }
 .detail-link { color: var(--blue-700); font-size: .68rem; font-weight: 800; text-decoration: none; }

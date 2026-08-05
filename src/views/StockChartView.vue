@@ -23,6 +23,7 @@ document.title = '미국 주식 시세 | SKALA Weather'
 
 const searchQuery = ref('')
 const searchSuggestions = ref(STOCK_MARKETS)
+const stockSort = ref('marketCap')
 const stockStore = useStockStore()
 const toast = useToast()
 const { favoriteSymbols, recentSymbols, selectedPeriod, selectedSymbol, quoteCache, profileCache, metricCache } = storeToRefs(stockStore)
@@ -71,16 +72,50 @@ const chartPeriodOptions = STOCK_CHART_PERIODS.map((period) => ({
   label: period.label,
   value: period.id,
 }))
+const stockSortOptions = [
+  { value: 'marketCap', label: '시가총액순', description: '2026년 8월 4일 시가총액 순위 기준' },
+  { value: 'volume', label: '거래량순', description: '최근 3개월 일평균 거래량이 많은 순서' },
+  { value: 'gainers', label: '상승률순', description: '현재 조회된 등락률이 높은 순서' },
+  { value: 'losers', label: '하락률순', description: '현재 조회된 등락률이 낮은 순서' },
+  { value: 'name', label: '종목명순', description: '종목명의 가나다순' },
+]
 const selectedPeriodLabel = computed(() =>
   STOCK_CHART_PERIODS.find(({ id }) => id === selectedPeriod.value)?.label ?? selectedPeriod.value,
 )
+const stockSortDescription = computed(() =>
+  stockSortOptions.find(({ value }) => value === stockSort.value)?.description ?? '',
+)
+
+const compareAvailableNumbers = (first, second, getValue, direction = 'desc') => {
+  const firstValue = getValue(first)
+  const secondValue = getValue(second)
+  const firstAvailable = Number.isFinite(firstValue)
+  const secondAvailable = Number.isFinite(secondValue)
+  if (firstAvailable !== secondAvailable) return firstAvailable ? -1 : 1
+  if (!firstAvailable) return first.rank - second.rank
+  return direction === 'asc' ? firstValue - secondValue : secondValue - firstValue
+}
+
+const sortMarkets = (markets) => [...markets].sort((first, second) => {
+  if (stockSort.value === 'volume') {
+    return compareAvailableNumbers(first, second, ({ symbol }) => metricCache.value[symbol]?.averageVolume)
+  }
+  if (stockSort.value === 'gainers') {
+    return compareAvailableNumbers(first, second, ({ symbol }) => quoteCache.value[symbol]?.changePercent)
+  }
+  if (stockSort.value === 'losers') {
+    return compareAvailableNumbers(first, second, ({ symbol }) => quoteCache.value[symbol]?.changePercent, 'asc')
+  }
+  if (stockSort.value === 'name') return first.name.localeCompare(second.name, 'ko')
+  return first.rank - second.rank
+})
 
 const filteredMarkets = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
-  if (!query) return STOCK_MARKETS
-  return STOCK_MARKETS.filter((market) =>
+  const markets = query ? STOCK_MARKETS.filter((market) =>
     market.name.toLowerCase().includes(query) || market.symbol.toLowerCase().includes(query),
-  )
+  ) : STOCK_MARKETS
+  return sortMarkets(markets)
 })
 
 const updateSearchSuggestions = ({ query }) => {
@@ -537,6 +572,13 @@ onMounted(async () => {
             <template #empty>일치하는 종목이 없습니다.</template>
           </AutoComplete>
         </div>
+        <div class="stock-sort">
+          <label for="stock-sort-select">목록 정렬</label>
+          <select id="stock-sort-select" v-model="stockSort" aria-describedby="stock-sort-description">
+            <option v-for="option in stockSortOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+          </select>
+          <small id="stock-sort-description">{{ stockSortDescription }}</small>
+        </div>
 
         <div v-if="isListLoading" class="list-skeletons" role="status" aria-label="현재 시세를 불러오는 중입니다">
           <Skeleton v-for="index in 7" :key="index" height="48px" border-radius="10px" />
@@ -546,19 +588,19 @@ onMounted(async () => {
         </div>
         <p v-else-if="!filteredMarkets.length" class="list-state" role="status">검색 결과가 없습니다.</p>
         <ul v-else class="stock-list">
-          <li v-for="market in filteredMarkets" :key="market.symbol">
+          <li v-for="(market, index) in filteredMarkets" :key="market.symbol">
             <button
               type="button"
               :class="{ selected: selectedMarket.symbol === market.symbol }"
               :aria-pressed="selectedMarket.symbol === market.symbol"
               @click="loadDetail(market)"
             >
-              <span class="stock-rank">{{ market.rank }}</span>
+              <span class="stock-rank" :aria-label="`${index + 1}위`">{{ index + 1 }}</span>
               <span class="stock-identity"><strong>{{ market.name }}</strong><small>{{ market.symbol }}</small></span>
               <span v-if="quoteBySymbol[market.symbol]" class="stock-quote">
                 <strong>{{ formatPrice(quoteBySymbol[market.symbol].currentPrice) }}</strong>
-                <small :class="{ down: quoteBySymbol[market.symbol].change < 0 }">
-                  {{ quoteBySymbol[market.symbol].change >= 0 ? '+' : '' }}{{ formatNumber(quoteBySymbol[market.symbol].change) }}
+                <small :class="{ down: quoteBySymbol[market.symbol].changePercent < 0 }">
+                  {{ quoteBySymbol[market.symbol].changePercent >= 0 ? '+' : '' }}{{ formatNumber(quoteBySymbol[market.symbol].changePercent) }}%
                 </small>
               </span>
               <span v-else class="stock-quote unavailable"><small>선택 시 조회</small></span>
@@ -849,6 +891,10 @@ onMounted(async () => {
 .stock-search :deep(.p-autocomplete) { width: 100%; }
 .stock-search :deep(.p-autocomplete-input) { width: 100%; padding: 11px 12px; border-color: #cadbe5; border-radius: 9px; color: var(--ink); background: #fbfdff; font-size: .82rem; box-shadow: none; }
 .stock-search :deep(.p-autocomplete-input:focus) { border-color: var(--blue-500); box-shadow: 0 0 0 3px rgba(49,139,208,.12); }
+.stock-sort { display: grid; gap: 6px; margin: 0 6px 14px; color: #536f82; font-size: .72rem; font-weight: 700; }
+.stock-sort select { width: 100%; min-height: 40px; padding: 8px 34px 8px 11px; border: 1px solid #cadbe5; border-radius: 9px; color: var(--ink); background: #fbfdff; font: inherit; font-size: .78rem; cursor: pointer; }
+.stock-sort select:hover { border-color: #9fc2d9; }.stock-sort select:focus-visible { border-color: var(--blue-500); outline: 3px solid rgba(49,139,208,.16); }
+.stock-sort small { min-height: 1.2em; color: var(--muted); font-size: .61rem; font-weight: 500; line-height: 1.4; }
 .search-option-rank { display: grid; width: 24px; height: 24px; flex: 0 0 auto; border-radius: 7px; place-items: center; color: var(--blue-700); background: var(--blue-100); font-size: .65rem; font-weight: 800; }
 .stock-search button:focus-visible, a:focus-visible { outline: 3px solid #84c9f3; outline-offset: 2px; }
 .stock-list { max-height: 610px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }

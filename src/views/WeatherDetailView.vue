@@ -62,11 +62,26 @@ onMounted(loadWeather)
       </div>
 
       <div class="detail-card">
+        <!-- Prominent Landmark Hero Banner -->
+        <div v-if="city.landmarkImg" class="detail-hero-banner">
+          <img :src="city.landmarkImg" :alt="`${city.name} ${city.landmarkName}`" class="hero-banner-img" @error="handleImageError" />
+          <div class="hero-banner-overlay"></div>
+          <div class="hero-banner-content">
+            <span class="hero-badge">🏛️ {{ city.name }} 대표 랜드마크</span>
+            <h2>{{ city.landmarkName }}</h2>
+            <p v-if="city.landmarkDesc">{{ city.landmarkDesc }}</p>
+          </div>
+        </div>
+
         <div class="current-summary">
           <span class="detail-icon" aria-hidden="true">{{ city.status === '맑음' ? '☀️' : city.status === '비' ? '🌧️' : city.status === '눈' ? '🌨️' : '☁️' }}</span>
           <div>
             <p class="temperature">{{ configStore.formatTemperature(city.temp) }}</p>
             <p class="status"><strong>{{ city.description }}</strong> · 체감 {{ configStore.formatTemperature(city.feelsLike) }}</p>
+            <div v-if="city.landmarkName" class="detail-landmark-tag">
+              <span>🏛️ 랜드마크: {{ city.landmarkName }}</span>
+              <small v-if="city.landmarkDesc"> · {{ city.landmarkDesc }}</small>
+            </div>
           </div>
         </div>
 
@@ -113,30 +128,112 @@ onMounted(loadWeather)
 h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.5rem); letter-spacing: -.05em; }
 .title-row { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
 .title-row time { padding-bottom: 7px; color: #8196a5; font-size: .75rem; }
-.detail-card { margin: 30px 0 24px; padding: 32px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); }
+.detail-card {
+  position: relative;
+  overflow: hidden;
+  margin: 30px 0 24px;
+  padding: 32px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.detail-hero-banner {
+  position: relative;
+  height: 200px;
+  margin: -32px -32px 24px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+}
+.hero-banner-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.hero-banner-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(14, 38, 56, 0.88) 0%, rgba(14, 38, 56, 0.25) 60%, transparent 100%);
+}
+.hero-banner-content {
+  position: absolute;
+  left: 28px;
+  bottom: 20px;
+  right: 28px;
+  color: #ffffff;
+  z-index: 1;
+}
+.hero-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(8px);
+  color: #e2f1fd;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+.hero-banner-content h2 {
+  margin: 6px 0 3px;
+  color: #ffffff;
+  font-size: 1.6rem;
+  letter-spacing: -0.03em;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.hero-banner-content p {
+  margin: 0;
+  color: #d2e6f5;
+  font-size: 0.82rem;
+}
+.detail-landmark-bg :deep(svg) {
+  width: 100%;
+  height: 100%;
+}
+.current-summary,
+.detail-metrics,
+.environment-section,
+.sun-section {
+  position: relative;
+  z-index: 1;
+}
 .current-summary { display: flex; align-items: center; gap: 22px; padding-bottom: 28px; border-bottom: 1px solid #e2ebf0; }
 .detail-icon { display: grid; width: 86px; height: 86px; flex: 0 0 auto; border-radius: 22px; place-items: center; background: #eef8ff; font-size: 3.5rem; }
 .temperature { margin: 0 0 8px; font-size: 4rem; font-weight: 800; line-height: 1; color: #153e5f; }
 .temperature small { margin-left: 4px; font-size: 1.2rem; color: #83a0b5; }
 .status { margin: 0; color: #668095; }
-.back-link { display: inline-block; padding: 12px 16px; border-radius: 9px; color: #fff; background: var(--blue-700); text-decoration: none; }
+.detail-landmark-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: #e8f4fc;
+  border: 1px solid #c7e1f2;
+  color: #1e5276;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.detail-landmark-tag small { font-weight: 500; color: #577890; }
+.back-link { display: inline-block; padding: 12px 16px; border-radius: 99px; color: #fff; background: var(--blue-700); text-decoration: none; }
 .back-link:hover { background: #12527e; }
 .error-message { color: #a44b4b; }
 .retry-button { margin: 10px 10px 24px 0; padding: 11px 15px; border: 0; border-radius: 9px; color: #fff; background: var(--blue-700); }
 .detail-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 24px 0 28px; }
-.detail-metrics div { padding: 16px; border-radius: 12px; background: #f0f7fb; }
+.detail-metrics div { padding: 16px; border-radius: 12px; background: rgba(240, 247, 251, 0.9); }
 .detail-metrics dt { margin-bottom: 6px; color: #7890a1; font-size: .72rem; }
 .detail-metrics dd { margin: 0; color: #294c65; font-size: 1.05rem; font-weight: 800; }
 .detail-metrics small { display: block; margin-top: 4px; color: #7890a1; font-size: .66rem; }
 .environment-section { padding-top: 26px; border-top: 1px solid #e2ebf0; }
 .environment-section h2 { margin: 0 0 14px; color: #29485e; font-size: 1rem; }
-.environment-grid { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid #e0eaf0; border-radius: 12px; }
+.environment-grid { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid #e0eaf0; border-radius: 12px; background: rgba(255, 255, 255, 0.85); }
 .environment-grid div { display: grid; gap: 5px; padding: 15px 18px; border-right: 1px solid #e0eaf0; }
 .environment-grid div:last-child { border-right: 0; }
 .environment-grid span { color: #8195a3; font-size: .7rem; }
 .environment-grid strong { color: #3c596d; font-size: .86rem; }
 .sun-section { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 18px; margin-top: 20px; padding: 16px 18px; border-radius: 12px; background: linear-gradient(90deg, #fff8dc, #edf7ff 55%, #eaeefe); }
-.sun-section > div:not(.daylight-line) { display: flex; align-items: center; gap: 9px; }
+.sun-section > div:not(.daylight-line) { display: flex; align-items: center; gap: 99px; }
 .sun-section > div > span { color: #e39145; font-size: 1.3rem; font-weight: 900; }
 .sun-section > div:last-child > span { color: #657ac1; }
 .sun-section p { display: grid; gap: 2px; margin: 0; color: #7c8d99; font-size: .65rem; }
