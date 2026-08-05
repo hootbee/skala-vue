@@ -8,6 +8,8 @@ import { useToast } from 'primevue/usetoast'
 import StockWatchlist from '../components/StockWatchlist.vue'
 import StockVolumeLeaders from '../components/StockVolumeLeaders.vue'
 import MarketIndexEtfs from '../components/MarketIndexEtfs.vue'
+import StockComparisonChart from '../components/StockComparisonChart.vue'
+import StockSectorHeatmap from '../components/StockSectorHeatmap.vue'
 import StockFinancials from '../components/StockFinancials.vue'
 import StockAiAnalysis from '../components/StockAiAnalysis.vue'
 import { analyzeStockStrategy } from '../services/geminiApi'
@@ -359,6 +361,11 @@ const loadFavoriteProfiles = async () => {
   ]))
 }
 
+const loadSectorQuotes = async (force = false) => {
+  const markets = STOCK_MARKETS.filter((market) => force || !quoteCache.value[market.symbol])
+  await Promise.allSettled(markets.map((market) => stockStore.getQuote(market, force)))
+}
+
 const loadVolumeRanking = async (force = false) => {
   isVolumeRankingLoading.value = true
   volumeRankingError.value = ''
@@ -490,6 +497,7 @@ async function loadChart(market, periodId, force = false) {
 
 const retryAll = () => {
   loadMarket(true)
+  loadSectorQuotes(true)
   loadVolumeRanking(true)
   loadMarketEtfs(true)
   loadDetail(selectedMarket.value, true)
@@ -522,6 +530,7 @@ const toggleSelectedFavorite = () => {
 
 onMounted(async () => {
   await loadMarket()
+  loadSectorQuotes()
   loadFavoriteProfiles()
   loadVolumeRanking()
   loadMarketEtfs()
@@ -568,6 +577,17 @@ onMounted(async () => {
       :notice="volumeRankingNotice"
       @select-market="loadDetail"
       @retry="loadVolumeRanking(true)"
+    />
+
+    <StockComparisonChart
+      :markets="STOCK_MARKETS"
+      :default-symbols="favoriteSymbols"
+    />
+
+    <StockSectorHeatmap
+      :markets="STOCK_MARKETS"
+      :quotes="quoteCache"
+      :metrics="metricCache"
     />
 
     <section class="stock-browser" aria-label="종목 탐색과 상세 정보">
