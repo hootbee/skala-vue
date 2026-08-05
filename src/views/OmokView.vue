@@ -109,15 +109,35 @@ const lineScore = (state, row, col, rowStep, colStep, stone) => {
   return openEnds * 2
 }
 
+const patternScore = (state, row, col, rowStep, colStep, stone) => {
+  const opponent = stone === PLAYER ? COMPUTER : PLAYER
+  let pattern = ''
+  for (let offset = -5; offset <= 5; offset += 1) {
+    const nextRow = row + offset * rowStep
+    const nextCol = col + offset * colStep
+    if (!inside(nextRow, nextCol)) pattern += '#'
+    else if (state[nextRow][nextCol] === stone) pattern += 'X'
+    else if (state[nextRow][nextCol] === opponent) pattern += 'O'
+    else pattern += '.'
+  }
+  const patterns = [
+    ['.XXXX.', 50000], ['.XXX.', 3500], ['.XX.X.', 2800], ['.X.XX.', 2800],
+    ['XXXX.', 7000], ['.XXXX', 7000], ['.XXX.', 3500], ['.XX..X.', 500], ['.X..XX.', 500],
+  ]
+  return patterns.reduce((total, [value, score]) => total + (pattern.includes(value) ? score : 0), 0)
+}
+
 const scoreMove = (state, row, col, stone) => {
   if (state[row][col] !== EMPTY) return -Infinity
   state[row][col] = stone
-  const score = DIRECTIONS.reduce((total, [rowStep, colStep]) => total + lineScore(state, row, col, rowStep, colStep, stone), 0)
+  const score = DIRECTIONS.reduce((total, [rowStep, colStep]) => total
+    + lineScore(state, row, col, rowStep, colStep, stone)
+    + patternScore(state, row, col, rowStep, colStep, stone), 0)
   state[row][col] = EMPTY
   return score
 }
 
-const rankedCandidates = (state, stone, limit = 12) => availableCells(state)
+const rankedCandidates = (state, stone, limit = 10) => availableCells(state)
   .map(([row, col]) => ({ row, col, score: scoreMove(state, row, col, stone) }))
   .sort((left, right) => right.score - left.score)
   .slice(0, limit)
@@ -125,16 +145,16 @@ const rankedCandidates = (state, stone, limit = 12) => availableCells(state)
 const evaluatePosition = (state) => {
   const candidates = availableCells(state)
   if (!candidates.length) return 0
-  let attack = 0
-  let defense = 0
-  candidates.forEach(([row, col]) => {
-    attack = Math.max(attack, scoreMove(state, row, col, COMPUTER))
-    defense = Math.max(defense, scoreMove(state, row, col, PLAYER))
-  })
+  const attackScores = candidates.map(([row, col]) => scoreMove(state, row, col, COMPUTER)).sort((a, b) => b - a)
+  const defenseScores = candidates.map(([row, col]) => scoreMove(state, row, col, PLAYER)).sort((a, b) => b - a)
+  const attack = attackScores[0] + (attackScores[1] || 0) * 0.35 + (attackScores[2] || 0) * 0.12
+  const defense = defenseScores[0] + (defenseScores[1] || 0) * 0.35 + (defenseScores[2] || 0) * 0.12
   return attack * 1.1 - defense
 }
 
-const minimax = (state, depth, maximizing, alpha, beta) => {
+const clock = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
+const minimax = (state, depth, maximizing, alpha, beta, deadline) => {
+  if (clock() >= deadline) return evaluatePosition(state)
   if (depth === 0) return evaluatePosition(state)
   const stone = maximizing ? COMPUTER : PLAYER
   const moves = rankedCandidates(state, stone)
@@ -146,7 +166,7 @@ const minimax = (state, depth, maximizing, alpha, beta) => {
       const nextState = state.map((line) => [...line])
       nextState[move.row][move.col] = stone
       if (hasFive(nextState, move.row, move.col, stone)) return 1000000
-      best = Math.max(best, minimax(nextState, depth - 1, false, alpha, beta))
+      best = Math.max(best, minimax(nextState, depth - 1, false, alpha, beta, deadline))
       alpha = Math.max(alpha, best)
       if (beta <= alpha) break
     }
@@ -158,7 +178,7 @@ const minimax = (state, depth, maximizing, alpha, beta) => {
     const nextState = state.map((line) => [...line])
     nextState[move.row][move.col] = stone
     if (hasFive(nextState, move.row, move.col, stone)) return -1000000
-    best = Math.min(best, minimax(nextState, depth - 1, true, alpha, beta))
+    best = Math.min(best, minimax(nextState, depth - 1, true, alpha, beta, deadline))
     beta = Math.min(beta, best)
     if (beta <= alpha) break
   }
@@ -172,15 +192,17 @@ const chooseComputerMove = (state) => {
   const blockingMove = candidates.find(([row, col]) => scoreMove(state, row, col, PLAYER) >= 100000)
   if (blockingMove) return blockingMove
 
-  const ranked = rankedCandidates(state, COMPUTER, 14)
+  const ranked = rankedCandidates(state, COMPUTER, 16)
+  const deadline = clock() + 650
   let bestMove = candidates[0]
   let bestScore = -Infinity
   ranked.forEach(({ row, col, score: attack }) => {
+    if (clock() >= deadline) return
     const defense = scoreMove(state, row, col, PLAYER)
     const centerDistance = Math.abs(row - 7) + Math.abs(col - 7)
     const nextState = state.map((line) => [...line])
     nextState[row][col] = COMPUTER
-    const replyScore = minimax(nextState, 2, false, -Infinity, Infinity)
+    const replyScore = minimax(nextState, 3, false, -Infinity, Infinity, deadline)
     const score = replyScore + attack * 0.15 + defense * 0.08 + (30 - centerDistance)
     if (score > bestScore) {
       bestScore = score
