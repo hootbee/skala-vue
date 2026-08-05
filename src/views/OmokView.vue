@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 const BOARD_SIZE = 15
 const EMPTY = 0
@@ -7,6 +7,7 @@ const COMPUTER = 1
 const PLAYER = 2
 const DIRECTIONS = [[1, 0], [0, 1], [1, 1], [1, -1]]
 const AI_TIME_LIMIT_MS = 30_000
+const PLAYER_TIME_LIMIT = 20
 
 const createBoard = () => Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(EMPTY))
 
@@ -15,6 +16,8 @@ const turn = ref(COMPUTER)
 const winner = ref(null)
 const isThinking = ref(false)
 const lastMove = ref(null)
+const playerSeconds = ref(PLAYER_TIME_LIMIT)
+let playerTimerId = null
 const historyKey = 'skala-omok-history'
 const loadHistory = () => {
   if (typeof window === 'undefined') return []
@@ -38,8 +41,35 @@ const statusText = computed(() => {
   if (winner.value === COMPUTER) return '컴퓨터가 승리했습니다. 다시 도전해 보세요.'
   if (winner.value === 'draw') return '모든 칸이 채워졌습니다. 무승부입니다.'
   if (isThinking.value || turn.value === COMPUTER) return '컴퓨터가 다음 수를 찾고 있습니다.'
+  if (playerSeconds.value <= 10) return '시간이 얼마 남지 않았습니다. 서둘러 두세요.'
   return '당신의 차례입니다. 흑돌을 놓아 보세요.'
 })
+
+const timerState = computed(() => {
+  if (playerSeconds.value > 10) return 'normal'
+  if (playerSeconds.value > 5) return 'warning'
+  return 'critical'
+})
+const timerWidth = computed(() => `${Math.max(0, (playerSeconds.value / PLAYER_TIME_LIMIT) * 100)}%`)
+
+const stopPlayerTimer = () => {
+  if (playerTimerId !== null) window.clearInterval(playerTimerId)
+  playerTimerId = null
+}
+
+const startPlayerTimer = () => {
+  stopPlayerTimer()
+  playerSeconds.value = PLAYER_TIME_LIMIT
+  playerTimerId = window.setInterval(() => {
+    if (winner.value || turn.value !== PLAYER || isThinking.value) return
+    playerSeconds.value -= 1
+    if (playerSeconds.value <= 0) {
+      stopPlayerTimer()
+      winner.value = COMPUTER
+      saveResult('loss')
+    }
+  }, 1000)
+}
 
 const saveResult = (result) => {
   if (recordSaved.value) return
@@ -143,6 +173,13 @@ const rankedCandidates = (state, stone, limit = 10) => availableCells(state)
   .sort((left, right) => right.score - left.score)
   .slice(0, limit)
 
+const winningMoves = (state, stone) => availableCells(state).filter(([row, col]) => {
+  state[row][col] = stone
+  const wins = hasFive(state, row, col, stone)
+  state[row][col] = EMPTY
+  return wins
+})
+
 const evaluatePosition = (state) => {
   const candidates = availableCells(state)
   if (!candidates.length) return 0
@@ -188,10 +225,18 @@ const minimax = (state, depth, maximizing, alpha, beta, deadline) => {
 
 const chooseComputerMove = (state) => {
   const candidates = availableCells(state)
-  const winningMove = candidates.find(([row, col]) => scoreMove(state, row, col, COMPUTER) >= 100000)
+  const winningMove = winningMoves(state, COMPUTER)[0]
   if (winningMove) return winningMove
-  const blockingMove = candidates.find(([row, col]) => scoreMove(state, row, col, PLAYER) >= 100000)
-  if (blockingMove) return blockingMove
+  const opponentWins = winningMoves(state, PLAYER)
+  if (opponentWins.length === 1) return opponentWins[0]
+  const doubleThreat = candidates.find(([row, col]) => {
+    state[row][col] = COMPUTER
+    const threats = winningMoves(state, COMPUTER).length
+    state[row][col] = EMPTY
+    return threats >= 2
+  })
+  if (doubleThreat) return doubleThreat
+  if (opponentWins.length > 1) return opponentWins[0]
 
   const ranked = rankedCandidates(state, COMPUTER, 16)
   const deadline = clock() + AI_TIME_LIMIT_MS
@@ -204,7 +249,7 @@ const chooseComputerMove = (state) => {
     const nextState = state.map((line) => [...line])
     nextState[row][col] = COMPUTER
     const replyScore = minimax(nextState, 3, false, -Infinity, Infinity, deadline)
-    const score = replyScore + attack * 0.15 + defense * 0.08 + (30 - centerDistance)
+    const score = replyScore + attack * 0.25 + defense * 0.1 + (30 - centerDistance)
     if (score > bestScore) {
       bestScore = score
       bestMove = [row, col]
@@ -223,6 +268,7 @@ const finishMove = (stone, row, col) => {
     saveResult('draw')
   } else {
     turn.value = stone === PLAYER ? COMPUTER : PLAYER
+    if (turn.value === PLAYER) startPlayerTimer()
   }
 }
 
@@ -241,6 +287,7 @@ const runComputerTurn = () => {
 
 const placeStone = (row, col) => {
   if (winner.value || isThinking.value || turn.value !== PLAYER || board.value[row][col] !== EMPTY) return
+  stopPlayerTimer()
   const nextBoard = board.value.map((line) => [...line])
   nextBoard[row][col] = PLAYER
   board.value = nextBoard
@@ -255,7 +302,9 @@ const resetGame = () => {
   winner.value = null
   isThinking.value = false
   lastMove.value = null
+  playerSeconds.value = PLAYER_TIME_LIMIT
   recordSaved.value = false
+  stopPlayerTimer()
   runComputerTurn()
 }
 
@@ -266,6 +315,7 @@ const cellLabel = (row, col, stone) => {
 }
 
 onMounted(runComputerTurn)
+onUnmounted(stopPlayerTimer)
 </script>
 
 <template>
@@ -301,6 +351,10 @@ onMounted(runComputerTurn)
         <div class="status-panel" aria-live="polite">
           <p class="eyebrow">GAME STATUS</p>
           <strong>{{ statusText }}</strong>
+          <div class="player-timer" :class="`timer-${timerState}`" role="timer" aria-label="내 차례 남은 시간">
+            <div class="timer-label"><span>내 차례 남은 시간</span><b>{{ playerSeconds }}초</b></div>
+            <div class="timer-track" aria-hidden="true"><span :style="{ width: timerWidth }"></span></div>
+          </div>
         </div>
         <div class="rules-panel">
           <h2>플레이 안내</h2>
@@ -348,6 +402,12 @@ h1 { margin: 0; font-size: clamp(2rem, 4vw, 3rem); letter-spacing: -.06em; }
 .game-info { display: grid; gap: 16px; }
 .status-panel, .rules-panel { padding: 22px; }
 .status-panel strong { display: block; color: var(--ink); font-size: 1.15rem; line-height: 1.55; }
+.player-timer { display: grid; gap: 8px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); transition: color .25s ease, border-color .25s ease; }
+.timer-label { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: .78rem; font-weight: 800; }.timer-label b { color: var(--blue-700); font-size: 1.2rem; font-variant-numeric: tabular-nums; transition: color .25s ease; }
+.timer-track { height: 9px; overflow: hidden; border-radius: 999px; background: #e6eef3; }.timer-track span { display: block; height: 100%; border-radius: inherit; background: var(--blue-500); transition: width 1s linear, background .25s ease; }
+.timer-warning { color: #bd6d16; border-color: #f2c98d; }.timer-warning .timer-label b { color: #c2751b; }.timer-warning .timer-track span { background: #e09a31; }
+.timer-critical { color: #b13d3d; border-color: #e9a4a4; animation: timer-pulse .8s ease-in-out infinite alternate; }.timer-critical .timer-label b { color: #b13d3d; }.timer-critical .timer-track span { background: #d64949; }
+@keyframes timer-pulse { from { background: transparent; } to { background: rgba(214, 73, 73, .1); } }
 .rules-panel h2 { margin: 0 0 12px; font-size: 1.05rem; }
 .rules-panel ul { display: grid; gap: 10px; margin: 0 0 15px; padding-left: 19px; color: var(--muted); font-size: .84rem; line-height: 1.6; }
 .difficulty-badge { display: inline-flex; padding: 6px 9px; border-radius: 7px; color: var(--blue-700); background: var(--blue-100); font-size: .72rem; font-weight: 800; }
@@ -358,5 +418,6 @@ h1 { margin: 0; font-size: clamp(2rem, 4vw, 3rem); letter-spacing: -.06em; }
 .legend { display: flex; flex-wrap: wrap; gap: 14px; padding: 0 4px; color: var(--muted); font-size: .78rem; font-weight: 700; }
 .legend span { display: inline-flex; align-items: center; gap: 7px; }
 .legend-stone { display: inline-block; width: 15px; height: 15px; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,.2); }.legend-stone.black { background: #17212a; }.legend-stone.white { border: 1px solid #a9b6bf; background: #f4f7f8; }
+@media (prefers-reduced-motion: reduce) { .timer-critical { animation: none; }.timer-track span { transition: none; } }
 @media (max-width: 760px) { .omok-page { width: min(100% - 24px, 1120px); padding-top: 28px; }.omok-header { align-items: flex-start; flex-direction: column; gap: 17px; }.omok-layout { grid-template-columns: 1fr; }.board-panel { padding: 12px; }.board { padding: 8px; }.game-info { grid-template-columns: 1fr; } }
 </style>
