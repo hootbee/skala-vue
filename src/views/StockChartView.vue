@@ -7,6 +7,7 @@ import Skeleton from 'primevue/skeleton'
 import { useToast } from 'primevue/usetoast'
 import StockWatchlist from '../components/StockWatchlist.vue'
 import StockVolumeLeaders from '../components/StockVolumeLeaders.vue'
+import MarketIndexEtfs from '../components/MarketIndexEtfs.vue'
 import StockFinancials from '../components/StockFinancials.vue'
 import StockAiAnalysis from '../components/StockAiAnalysis.vue'
 import { analyzeStockStrategy } from '../services/geminiApi'
@@ -15,6 +16,7 @@ import {
   STOCK_MARKETS,
   STOCK_RANKING_UPDATED_AT,
   getChartErrorMessage,
+  fetchMarketEtfQuotes,
   getStockErrorMessage,
 } from '../services/stockApi'
 import { useStockStore } from '../stores/stockStore'
@@ -40,6 +42,9 @@ const detailError = ref('')
 const isVolumeRankingLoading = ref(true)
 const volumeRankingError = ref('')
 const volumeRankingNotice = ref('')
+const marketEtfs = ref([])
+const isMarketEtfLoading = ref(true)
+const marketEtfError = ref('')
 const chartData = ref(null)
 const chartSvg = ref(null)
 const hoveredChartIndex = ref(null)
@@ -368,6 +373,18 @@ const loadVolumeRanking = async (force = false) => {
   isVolumeRankingLoading.value = false
 }
 
+const loadMarketEtfs = async (force = false) => {
+  isMarketEtfLoading.value = true
+  marketEtfError.value = ''
+  try {
+    marketEtfs.value = await fetchMarketEtfQuotes(force)
+  } catch (error) {
+    marketEtfError.value = getChartErrorMessage(error)
+  } finally {
+    isMarketEtfLoading.value = false
+  }
+}
+
 const loadDetail = async (market, force = false) => {
   stockStore.selectStock(market.symbol)
   detailError.value = ''
@@ -474,6 +491,7 @@ async function loadChart(market, periodId, force = false) {
 const retryAll = () => {
   loadMarket(true)
   loadVolumeRanking(true)
+  loadMarketEtfs(true)
   loadDetail(selectedMarket.value, true)
 }
 
@@ -506,6 +524,7 @@ onMounted(async () => {
   await loadMarket()
   loadFavoriteProfiles()
   loadVolumeRanking()
+  loadMarketEtfs()
   loadDetail(selectedMarket.value)
 })
 </script>
@@ -533,6 +552,13 @@ onMounted(async () => {
       @remove-favorite="removeFavorite"
     />
     <p class="favorite-feedback" role="status" aria-live="polite">{{ favoriteMessage }}</p>
+
+    <MarketIndexEtfs
+      :items="marketEtfs"
+      :is-loading="isMarketEtfLoading"
+      :error="marketEtfError"
+      @retry="loadMarketEtfs(true)"
+    />
 
     <StockVolumeLeaders
       :items="volumeLeaders"

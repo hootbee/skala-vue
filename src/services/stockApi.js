@@ -10,6 +10,17 @@ const chartApi = axios.create({
   timeout: 15000,
 })
 
+const marketEtfs = [
+  { symbol: 'QQQ', name: '나스닥', description: 'Nasdaq-100 추종 ETF' },
+  { symbol: 'SPY', name: 'S&P 500', description: 'S&P 500 추종 ETF' },
+  { symbol: 'DIA', name: '다우존스', description: 'Dow Jones 추종 ETF' },
+]
+
+const marketEtfCacheKey = 'skala-market-etf-quotes-v3'
+const marketEtfCacheTtl = 5 * 60_000
+
+export const MARKET_ETFS = Object.freeze(marketEtfs)
+
 export const STOCK_MARKETS = [
   { id: 'nvidia', rank: 1, name: '엔비디아', symbol: 'NVDA' },
   { id: 'apple', rank: 2, name: '애플', symbol: 'AAPL' },
@@ -359,6 +370,66 @@ export async function fetchStockChart(market, periodId) {
     exchange: data.meta?.exchange || '',
     values,
   }
+}
+
+const normalizeMarketEtfQuote = (market, data) => ({
+  ...market,
+  price: Number(data.close),
+  change: Number(data.change),
+  changePercent: Number(data.percent_change),
+  previousClose: Number(data.previous_close),
+  updatedAt: data.datetime || null,
+})
+
+export async function fetchMarketEtfQuotes(force = false) {
+  const token = import.meta.env.VITE_TWELVE_DATA_API_KEY
+  if (!token) throw new Error('Twelve Data API 키가 설정되지 않았습니다.')
+
+  if (!force && typeof window !== 'undefined') {
+    try {
+      const cached = JSON.parse(localStorage.getItem(marketEtfCacheKey) || 'null')
+      if (cached?.cachedAt && Date.now() - cached.cachedAt < marketEtfCacheTtl && Array.isArray(cached.data)) {
+        return cached.data
+      }
+    } catch {
+      // 캐시를 읽지 못하면 새 데이터를 요청합니다.
+    }
+  }
+
+  const results = await Promise.allSettled(marketEtfs.map(async (market) => {
+    const [quoteResult, historyResult] = await Promise.allSettled([
+      chartApi.get('/quote', { params: { symbol: market.symbol, apikey: token } }),
+      chartApi.get('/time_series', {
+        params: { symbol: market.symbol, interval: '1day', outputsize: 10, apikey: token },
+      }),
+    ])
+    if (quoteResult.status === 'rejected') throw quoteResult.reason
+    const { data } = quoteResult.value
+    const historyData = historyResult.status === 'fulfilled' ? historyResult.value.data : null
+    if (data.status === 'error' || !data.close) {
+      const error = new Error(data.message || `${market.symbol} 시세를 불러오지 못했습니다.`)
+      error.apiCode = data.code
+      throw error
+    }
+    const history = Array.isArray(historyData?.values)
+      ? historyData.values.map(({ open, high, low, close }) => ({
+          open: Number(open),
+          high: Number(high),
+          low: Number(low),
+          close: Number(close),
+        })).filter(({ open, high, low, close }) => [open, high, low, close].every(Number.isFinite)).reverse()
+      : []
+    return { ...normalizeMarketEtfQuote(market, data), history }
+  }))
+  const data = results.filter(({ status }) => status === 'fulfilled').map(({ value }) => value)
+  if (!data.length) throw results.find(({ status }) => status === 'rejected')?.reason ?? new Error('시장 대표 ETF 시세를 불러오지 못했습니다.')
+
+  if (typeof window !== 'undefined') {
+    try { localStorage.setItem(marketEtfCacheKey, JSON.stringify({ cachedAt: Date.now(), data })) } catch {
+      // 저장 공간을 사용할 수 없어도 현재 조회 결과는 표시합니다.
+    }
+  }
+  return data
 }
 
 export function getStockErrorMessage(error) {
