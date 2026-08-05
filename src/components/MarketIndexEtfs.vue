@@ -40,7 +40,7 @@ const candleShapes = (values) => {
 <template>
   <section class="market-etfs" aria-labelledby="market-etfs-title">
     <header class="market-etfs-heading">
-      <div><p>MARKET PULSE</p><h2 id="market-etfs-title">미국 주요 지수 흐름</h2></div>
+      <div><p>MARKET PULSE</p><h2 id="market-etfs-title">미국 대표 지수 흐름</h2></div>
       <span>지수 추종 ETF 기준 · 5분 캐시</span>
     </header>
     <div v-if="isLoading" class="etf-grid" role="status" aria-label="주요 지수를 불러오는 중입니다">

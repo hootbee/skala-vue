@@ -30,6 +30,7 @@ const closeMenu = () => { isMenuOpen.value = false }
           <RouterLink to="/weather">날씨</RouterLink>
           <RouterLink to="/about">서비스 소개</RouterLink>
           <RouterLink to="/stocks">주식 시세</RouterLink>
+          <RouterLink to="/omok">오목</RouterLink>
           <RouterLink to="/api-lab">API 실습</RouterLink>
           <RouterLink class="subscribe-link" to="/subscribe">구독하기</RouterLink>
         </div>
@@ -48,6 +49,7 @@ const closeMenu = () => { isMenuOpen.value = false }
         <RouterLink to="/weather" @click="closeMenu">날씨</RouterLink>
         <RouterLink to="/about" @click="closeMenu">서비스 소개</RouterLink>
         <RouterLink to="/stocks" @click="closeMenu">주식 시세</RouterLink>
+        <RouterLink to="/omok" @click="closeMenu">오목</RouterLink>
         <RouterLink to="/api-lab" @click="closeMenu">API 실습</RouterLink>
         <RouterLink class="subscribe-link" to="/subscribe" @click="closeMenu">구독하기</RouterLink>
       </nav>

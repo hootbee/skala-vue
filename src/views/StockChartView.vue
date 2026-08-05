@@ -55,7 +55,7 @@ const marketBrief = computed(() => {
   const rising = available.filter(({ changePercent }) => changePercent >= 0).length
   return {
     title: average >= 0 ? '대표 지수는 상승 흐름' : '대표 지수는 조정 흐름',
-    body: `${available.map(({ name, changePercent }) => `${name} ${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`).join(' · ')}로 집계됐습니다.`,
+    body: `ETF 기준 · ${available.map(({ symbol, changePercent }) => `${symbol} ${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`).join(' · ')}`,
     average,
     rising,
     total: available.length,
@@ -592,7 +592,7 @@ onMounted(async () => {
         <h2 id="market-brief-title">{{ marketBrief.title }}</h2>
         <p class="market-brief-copy">{{ marketBrief.body }}</p>
         <dl class="market-brief-kpis">
-          <div><dt>상승 지수</dt><dd>{{ marketBrief.total ? `${marketBrief.rising}/${marketBrief.total}` : '—' }}</dd></div>
+          <div><dt>상승 ETF</dt><dd>{{ marketBrief.total ? `${marketBrief.rising}/${marketBrief.total}` : '—' }}</dd></div>
           <div><dt>평균 등락률</dt><dd :class="{ negative: marketBrief.average < 0 }">{{ Number.isFinite(marketBrief.average) ? `${marketBrief.average >= 0 ? '+' : ''}${marketBrief.average.toFixed(2)}%` : '—' }}</dd></div>
         </dl>
       </aside>
